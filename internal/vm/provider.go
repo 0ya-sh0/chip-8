@@ -2,6 +2,7 @@ package vm
 
 type KeyboardProvider interface {
 	GetKey() uint8
+	IsKeyPressed(u uint8) bool
 }
 
 type DisplayProvider interface {

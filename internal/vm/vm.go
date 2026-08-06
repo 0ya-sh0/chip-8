@@ -2,8 +2,28 @@ package vm
 
 import (
 	"context"
+	"math/rand"
 	"os"
 )
+
+var fontSet = [80]uint8{
+	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+	0x20, 0x60, 0x20, 0x20, 0x70, // 1
+	0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+	0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+	0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+	0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+	0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+	0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+	0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+	0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+	0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+	0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+	0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+	0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+	0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+	0xF0, 0x80, 0xF0, 0x80, 0x80, // F
+}
 
 type Chip8VM struct {
 	ram    [4096]uint8
@@ -11,10 +31,12 @@ type Chip8VM struct {
 	idxreg uint16
 	pc     uint16
 	// buf[col - x][row - y]
-	buf     [64][32]bool
-	stack   []uint16
-	key     KeyboardProvider
-	display DisplayProvider
+	buf        [64][32]bool
+	stack      []uint16
+	soundTimer uint8
+	delayTimer uint8
+	key        KeyboardProvider
+	display    DisplayProvider
 }
 
 func NewChip8VM(key KeyboardProvider, display DisplayProvider) *Chip8VM {
@@ -22,10 +44,13 @@ func NewChip8VM(key KeyboardProvider, display DisplayProvider) *Chip8VM {
 }
 
 func (vm *Chip8VM) LoadROMFromFile(filepath string) error {
+	// Load font set into reserved memory 0x050 - 0x09F
+	copy(vm.ram[0x050:], fontSet[:])
 	data, err := os.ReadFile(filepath)
 	if err != nil {
 		return err
 	}
+
 	for i, ptr := 0, 512; ptr < len(vm.ram) && i < len(data); ptr++ {
 		vm.ram[ptr] = data[i]
 		i++
@@ -236,6 +261,40 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		// Sets I = I + VX
 		x := oc.nibbles[1]
 		vm.idxreg += uint16(vm.greg[x])
+	case OpCXNN:
+		x := oc.nibbles[1]
+		nn := (oc.nibbles[2] << 4) | oc.nibbles[3]
+		vm.greg[x] = uint8(rand.Intn(256)) & nn
+	case OpEX9E:
+		x := oc.nibbles[1]
+		if vm.key.IsKeyPressed(vm.greg[x]) {
+			vm.pc += 4
+			return
+		}
+	case OpEXA1:
+		x := oc.nibbles[1]
+		if !vm.key.IsKeyPressed(vm.greg[x]) {
+			vm.pc += 4
+			return
+		}
+	case OpFX0A:
+		x := oc.nibbles[1]
+		vm.greg[x] = vm.key.GetKey()
+		// TODO: unblock to process time & sound!
+		// if key, pressed := vm.key.GetKey(); pressed {
+		// 	vm.greg[x] = key
+		// } else {
+		// 	return // Do NOT advance PC; repeats this instruction next cycle until pressed
+		// }
+	case OpFX07:
+		vm.greg[oc.nibbles[1]] = vm.delayTimer
+	case OpFX15:
+		vm.delayTimer = vm.greg[oc.nibbles[1]]
+	case OpFX18:
+		vm.soundTimer = vm.greg[oc.nibbles[1]]
+	case OpFX29:
+		// Fonts start at address 0x050, and each character is 5 bytes tall
+		vm.idxreg = 0x050 + uint16(vm.greg[oc.nibbles[1]]&0x0F)*5
 	default:
 		panic("unimplemented: " + oc.opcodeType)
 	}
