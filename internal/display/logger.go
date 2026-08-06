@@ -9,6 +9,11 @@ import (
 type LoggerDisplay struct {
 }
 
+// Close implements [vm.DisplayProvider].
+func (l *LoggerDisplay) Close() {
+
+}
+
 // Draw implements [vm.DisplayProvider].
 func (l *LoggerDisplay) Draw(data [64][32]bool) {
 	fmt.Printf("Display: Draw\n")

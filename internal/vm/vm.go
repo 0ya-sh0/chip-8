@@ -38,10 +38,11 @@ type Chip8VM struct {
 	delayTimer uint8
 	key        KeyboardProvider
 	display    DisplayProvider
+	sound      SoundProvider
 }
 
-func NewChip8VM(key KeyboardProvider, display DisplayProvider) *Chip8VM {
-	return &Chip8VM{key: key, display: display, pc: 512}
+func NewChip8VM(key KeyboardProvider, display DisplayProvider, sound SoundProvider) *Chip8VM {
+	return &Chip8VM{key: key, display: display, sound: sound, pc: 512}
 }
 
 func (vm *Chip8VM) LoadROMFromFile(filepath string) error {
@@ -81,10 +82,17 @@ func (vm *Chip8VM) Start(ctx context.Context) {
 			vm.exec(parsedOpcode)
 		case <-delayTick.C:
 			if vm.delayTimer > 0 {
-				vm.delayTimer -= 1
+				vm.delayTimer--
 			}
+
+			// Sound logic
 			if vm.soundTimer > 0 {
-				vm.soundTimer -= 1
+				vm.soundTimer--
+				// Trigger play. A robust SoundProvider should ignore this if already playing.
+				vm.sound.PlaySound()
+			} else {
+				// Timer hit 0, stop the sound.
+				vm.sound.StopSound()
 			}
 		}
 	}
