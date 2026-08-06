@@ -1,8 +1,8 @@
 package vm
 
 type KeyboardProvider interface {
-	GetKey() uint8
-	IsKeyPressed(u uint8) bool
+	GetPressedKey() (key uint8, pressed bool)
+	IsKeyPressed(key uint8) bool
 }
 
 type DisplayProvider interface {

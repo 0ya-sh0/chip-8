@@ -298,13 +298,13 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		}
 	case OpFX0A:
 		x := oc.nibbles[1]
-		vm.greg[x] = vm.key.GetKey()
-		// TODO: unblock to process time & sound!
-		// if key, pressed := vm.key.GetKey(); pressed {
-		// 	vm.greg[x] = key
-		// } else {
-		// 	return // Do NOT advance PC; repeats this instruction next cycle until pressed
-		// }
+		key, pressed := vm.key.GetPressedKey()
+		if !pressed {
+			// No key pressed: return early WITHOUT advancing vm.pc.
+			// Timers in Start() continue ticking while CPU repeatedly checks this opcode.
+			return
+		}
+		vm.greg[x] = key
 	case OpFX07:
 		vm.greg[oc.nibbles[1]] = vm.delayTimer
 	case OpFX15:
