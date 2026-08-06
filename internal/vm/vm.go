@@ -101,6 +101,15 @@ func (vm *Chip8VM) Start(ctx context.Context) {
 func (vm *Chip8VM) exec(oc parsedOpcode) {
 	// fmt.Printf("%X => %+v\n", [2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]}, oc)
 	switch oc.opcodeType {
+	case Op0NNN:
+		// 0NNN: Calls RCA 1802 machine code routine at NNN.
+		// Modern CHIP-8 ROMs do not use this; it is safely ignored in modern interpreters.
+
+	case OpBNNN:
+		// Jumps to address NNN + V0
+		nnn := (uint16(oc.nibbles[1]) << 8) | (uint16(oc.nibbles[2]) << 4) | uint16(oc.nibbles[3])
+		vm.pc = nnn + uint16(vm.greg[0])
+		return
 	case Op00E0:
 		for col := 0; col < 64; col++ {
 			for row := 0; row < 32; row++ {
