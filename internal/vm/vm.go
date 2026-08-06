@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/rand"
 	"os"
+	"time"
 )
 
 var fontSet = [80]uint8{
@@ -59,15 +60,33 @@ func (vm *Chip8VM) LoadROMFromFile(filepath string) error {
 }
 
 func (vm *Chip8VM) Start(ctx context.Context) {
+	cpuTick := time.NewTicker(time.Second / 500)
+	delayTick := time.NewTicker(time.Second / 60)
+
+	defer cpuTick.Stop()
+	defer delayTick.Stop()
+
 	for {
-		if int(vm.pc) >= len(vm.ram)-1 {
+		select {
+		case <-ctx.Done():
 			return
+		case <-cpuTick.C:
+			if int(vm.pc) >= len(vm.ram)-1 {
+				return
+			}
+			parsedOpcode := parseOpcode([2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]})
+			if parsedOpcode.opcodeType == OpNA {
+				return
+			}
+			vm.exec(parsedOpcode)
+		case <-delayTick.C:
+			if vm.delayTimer > 0 {
+				vm.delayTimer -= 1
+			}
+			if vm.soundTimer > 0 {
+				vm.soundTimer -= 1
+			}
 		}
-		parsedOpcode := parseOpcode([2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]})
-		if parsedOpcode.opcodeType == OpNA {
-			return
-		}
-		vm.exec(parsedOpcode)
 	}
 }
 
