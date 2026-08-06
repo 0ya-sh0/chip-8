@@ -2,7 +2,6 @@ package vm
 
 import (
 	"context"
-	"fmt"
 	"os"
 )
 
@@ -47,7 +46,7 @@ func (vm *Chip8VM) Start(ctx context.Context) {
 }
 
 func (vm *Chip8VM) exec(oc parsedOpcode) {
-	fmt.Printf("%X => %+v\n", [2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]}, oc)
+	// fmt.Printf("%X => %+v\n", [2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]}, oc)
 	switch oc.opcodeType {
 	case Op00E0:
 		for col := 0; col < 64; col++ {
