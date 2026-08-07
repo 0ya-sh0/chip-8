@@ -49,17 +49,8 @@ This project strictly adheres to **Hexagonal Architecture**. The core execution 
 │       └── main.go
 ├── internal
 │   ├── ebit         # Ebitengine GUI adapters (Display, Keyboard, Sound)
-│   │   └── adapter.go
 │   ├── terminal     # Raw terminal adapters (Display, Keyboard, Sound)
-│   │   ├── display.go
-│   │   ├── keyboard.go
-│   │   └── sound.go
 │   └── vm           # Core CHIP-8 VM engine & opcode execution
-│       ├── display_logger.go
-│       ├── opcode.go
-│       ├── opcode_test.go
-│       ├── provider.go
-│       └── vm.go
 ├── test-games       # Public domain games & demo ROMs
 └── test-roms        # Timendus CHIP-8 test suite ROMs
 ```
