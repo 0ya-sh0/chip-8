@@ -1,9 +1,7 @@
-package display
+package vm
 
 import (
 	"fmt"
-
-	"github.com/0ya-sh0/chip-8/internal/vm"
 )
 
 type LoggerDisplay struct {
@@ -24,4 +22,4 @@ func (l *LoggerDisplay) Clear() {
 	fmt.Printf("Display: Clear\n")
 }
 
-var _ (vm.DisplayProvider) = (*LoggerDisplay)(nil)
+var _ (DisplayProvider) = (*LoggerDisplay)(nil)

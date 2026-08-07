@@ -68,8 +68,8 @@ go run cmd/main.go path/to/rom.ch8
 
 ## 🧪 Testing & Acknowledgments
 
-* **Test Suite:** The end-to-end tests located under `/e2e` use [Timendus's CHIP-8 Test Suite](https://github.com/Timendus/chip8-test-suite) for verifying opcode logic, flags, and memory operations.
-* **Additional Games & ROMs:** Public domain games and test binaries can be found at [Matt Mikolay's CHIP-8 Repository](https://github.com/mattmikolay/chip-8).
+* **Test Suite:** The end-to-end tests located under `/test-roms` use [Timendus's CHIP-8 Test Suite](https://github.com/Timendus/chip8-test-suite) for verifying opcode logic, flags, and memory operations.
+* **Additional Games & ROMs:** Public domain games and test binaries in `/test-games` can be found at [Matt Mikolay's CHIP-8 Repository](https://github.com/mattmikolay/chip-8).
 
 ### References & Documentation
 
