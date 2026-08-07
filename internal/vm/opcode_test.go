@@ -12,7 +12,7 @@ func Test_parseOpcode(t *testing.T) {
 		var opcode [2]uint8
 		opcode[0] = data[i]
 		opcode[1] = data[i+1]
-		result := parseOpcode(opcode)
+		result := ParseOpcode(opcode)
 		fmt.Printf("%X == %+v\n", opcode, result)
 	}
 }

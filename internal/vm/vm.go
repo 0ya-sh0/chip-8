@@ -75,8 +75,8 @@ func (vm *Chip8VM) Start(ctx context.Context) {
 			if int(vm.pc) >= len(vm.ram)-1 {
 				return
 			}
-			parsedOpcode := parseOpcode([2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]})
-			if parsedOpcode.opcodeType == OpNA {
+			parsedOpcode := ParseOpcode([2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]})
+			if parsedOpcode.OpcodeType == OpNA {
 				return
 			}
 			vm.exec(parsedOpcode)
@@ -98,16 +98,16 @@ func (vm *Chip8VM) Start(ctx context.Context) {
 	}
 }
 
-func (vm *Chip8VM) exec(oc parsedOpcode) {
+func (vm *Chip8VM) exec(oc ParsedOpcode) {
 	// fmt.Printf("%X => %+v\n", [2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]}, oc)
-	switch oc.opcodeType {
+	switch oc.OpcodeType {
 	case Op0NNN:
 		// 0NNN: Calls RCA 1802 machine code routine at NNN.
 		// Modern CHIP-8 ROMs do not use this; it is safely ignored in modern interpreters.
 
 	case OpBNNN:
 		// Jumps to address NNN + V0
-		nnn := (uint16(oc.nibbles[1]) << 8) | (uint16(oc.nibbles[2]) << 4) | uint16(oc.nibbles[3])
+		nnn := (uint16(oc.Nibbles[1]) << 8) | (uint16(oc.Nibbles[2]) << 4) | uint16(oc.Nibbles[3])
 		vm.pc = nnn + uint16(vm.greg[0])
 		return
 	case Op00E0:
@@ -119,15 +119,15 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		vm.display.Clear()
 	case Op6XNN:
 		// Const: Sets VX to NN
-		vm.greg[oc.nibbles[1]] = (oc.nibbles[2]<<4 + oc.nibbles[3])
+		vm.greg[oc.Nibbles[1]] = (oc.Nibbles[2]<<4 + oc.Nibbles[3])
 	case OpANNN:
 		// MEM: Sets I to the address NNN
-		vm.idxreg = uint16(oc.nibbles[1])<<8 + uint16(oc.nibbles[2])<<4 + uint16(oc.nibbles[3])
+		vm.idxreg = uint16(oc.Nibbles[1])<<8 + uint16(oc.Nibbles[2])<<4 + uint16(oc.Nibbles[3])
 	case OpDXYN:
 		// Display: draw(Vx, Vy, N)
-		xCoord := vm.greg[oc.nibbles[1]] % 64
-		yCoord := vm.greg[oc.nibbles[2]] % 32
-		N := oc.nibbles[3]
+		xCoord := vm.greg[oc.Nibbles[1]] % 64
+		yCoord := vm.greg[oc.Nibbles[2]] % 32
+		N := oc.Nibbles[3]
 		flipBit := false
 		for i := 0; i < int(N) && int(yCoord)+i < 32; i++ {
 			rowByte := vm.ram[vm.idxreg+uint16(i)]
@@ -160,39 +160,39 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		vm.display.Draw(vm.buf)
 	case Op1NNN:
 		// Flow: Jumps to address NNN
-		vm.pc = uint16(oc.nibbles[1])<<8 + uint16(oc.nibbles[2])<<4 + uint16(oc.nibbles[3])
+		vm.pc = uint16(oc.Nibbles[1])<<8 + uint16(oc.Nibbles[2])<<4 + uint16(oc.Nibbles[3])
 		return
 	case Op7XNN:
 		// Const: Adds NN to VX (carry flag is not changed).
-		vm.greg[oc.nibbles[1]] += oc.nibbles[2]<<4 + oc.nibbles[3]
+		vm.greg[oc.Nibbles[1]] += oc.Nibbles[2]<<4 + oc.Nibbles[3]
 	case Op3XNN:
 		// Cond: Skips the next instruction if VX equals NN (usually the next instruction is a jump to skip a code block)
-		if vm.greg[oc.nibbles[1]] == oc.nibbles[2]<<4+oc.nibbles[3] {
+		if vm.greg[oc.Nibbles[1]] == oc.Nibbles[2]<<4+oc.Nibbles[3] {
 			vm.pc += 4
 			return
 		}
 	case Op4XNN:
 		// Cond: Skips the next instruction if VX does not equal NN (usually the next instruction is a jump to skip a code block)
-		if vm.greg[oc.nibbles[1]] != oc.nibbles[2]<<4+oc.nibbles[3] {
+		if vm.greg[oc.Nibbles[1]] != oc.Nibbles[2]<<4+oc.Nibbles[3] {
 			vm.pc += 4
 			return
 		}
 	case Op5XY0:
 		// Cond: Skips the next instruction if VX equals VY (usually the next instruction is a jump to skip a code block)
-		if vm.greg[oc.nibbles[1]] == vm.greg[oc.nibbles[2]] {
+		if vm.greg[oc.Nibbles[1]] == vm.greg[oc.Nibbles[2]] {
 			vm.pc += 4
 			return
 		}
 	case Op9XY0:
 		// Cond: Skips the next instruction if VX does not equal VY. (Usually the next instruction is a jump to skip a code block)
-		if vm.greg[oc.nibbles[1]] != vm.greg[oc.nibbles[2]] {
+		if vm.greg[oc.Nibbles[1]] != vm.greg[oc.Nibbles[2]] {
 			vm.pc += 4
 			return
 		}
 	case Op2NNN:
 		// Flow: Calls subroutine at NNN
 		vm.stack = append(vm.stack, vm.pc+2)
-		vm.pc = uint16(oc.nibbles[1])<<8 + uint16(oc.nibbles[2])<<4 + uint16(oc.nibbles[3])
+		vm.pc = uint16(oc.Nibbles[1])<<8 + uint16(oc.Nibbles[2])<<4 + uint16(oc.Nibbles[3])
 		return
 	case Op00EE:
 		// Flow: return
@@ -201,27 +201,27 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		return
 	case Op8XY0:
 		// Sets VX to the value of VY
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vm.greg[x] = vm.greg[y]
 
 	case Op8XY1:
 		// Sets VX to VX OR VY
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vm.greg[x] |= vm.greg[y]
 
 	case Op8XY2:
 		// Sets VX to VX AND VY
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vm.greg[x] &= vm.greg[y]
 
 	case Op8XY3:
 		// Sets VX to VX XOR VY
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vm.greg[x] ^= vm.greg[y]
 
 	case Op8XY4:
 		// Adds VY to VX. VF is set to 1 when there's an overflow (> 255), otherwise 0.
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vx, vy := vm.greg[x], vm.greg[y]
 		sum := uint16(vx) + uint16(vy)
 
@@ -234,7 +234,7 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 
 	case Op8XY5:
 		// VX = VX - VY. VF is set to 1 if VX >= VY (NO borrow), otherwise 0.
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vx, vy := vm.greg[x], vm.greg[y]
 
 		var flag uint8 = 0
@@ -246,7 +246,7 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 
 	case Op8XY6:
 		// Shifts VX right by 1. VF is set to the LSB of VX prior to shift.
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		vx := vm.greg[x]
 		flag := vx & 0x01
 
@@ -255,7 +255,7 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 
 	case Op8XY7:
 		// VX = VY - VX. VF is set to 1 if VY >= VX (NO borrow), otherwise 0.
-		x, y := oc.nibbles[1], oc.nibbles[2]
+		x, y := oc.Nibbles[1], oc.Nibbles[2]
 		vx, vy := vm.greg[x], vm.greg[y]
 
 		var flag uint8 = 0
@@ -267,7 +267,7 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 
 	case Op8XYE:
 		// Shifts VX left by 1. VF is set to the MSB of VX prior to shift.
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		vx := vm.greg[x]
 		flag := (vx >> 7) & 0x01
 
@@ -275,19 +275,19 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		vm.greg[15] = flag
 	case OpFX65:
 		// Fills from V0 to VX (including VX) with values from memory, starting at address I. The offset from I is increased by 1 for each value read, but I itself is left unmodified.
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		for ix := 0; ix <= int(x); ix++ {
 			vm.greg[ix] = vm.ram[vm.idxreg+uint16(ix)]
 		}
 	case OpFX55:
 		// Stores from V0 to VX (including VX) in memory, starting at address I. The offset from I is increased by 1 for each value written, but I itself is left unmodified.
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		for ix := 0; ix <= int(x); ix++ {
 			vm.ram[vm.idxreg+uint16(ix)] = vm.greg[ix]
 		}
 	case OpFX33:
 		// BCD: Stores Binary-Coded Decimal representation of VX in memory at I, I+1, I+2.
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		vx := vm.greg[x]
 
 		vm.ram[vm.idxreg] = vx / 100
@@ -295,26 +295,26 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		vm.ram[vm.idxreg+2] = vx % 10
 	case OpFX1E:
 		// Sets I = I + VX
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		vm.idxreg += uint16(vm.greg[x])
 	case OpCXNN:
-		x := oc.nibbles[1]
-		nn := (oc.nibbles[2] << 4) | oc.nibbles[3]
+		x := oc.Nibbles[1]
+		nn := (oc.Nibbles[2] << 4) | oc.Nibbles[3]
 		vm.greg[x] = uint8(rand.Intn(256)) & nn
 	case OpEX9E:
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		if vm.key.IsKeyPressed(vm.greg[x]) {
 			vm.pc += 4
 			return
 		}
 	case OpEXA1:
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		if !vm.key.IsKeyPressed(vm.greg[x]) {
 			vm.pc += 4
 			return
 		}
 	case OpFX0A:
-		x := oc.nibbles[1]
+		x := oc.Nibbles[1]
 		key, pressed := vm.key.GetPressedKey()
 		if !pressed {
 			// No key pressed: return early WITHOUT advancing vm.pc.
@@ -323,16 +323,16 @@ func (vm *Chip8VM) exec(oc parsedOpcode) {
 		}
 		vm.greg[x] = key
 	case OpFX07:
-		vm.greg[oc.nibbles[1]] = vm.delayTimer
+		vm.greg[oc.Nibbles[1]] = vm.delayTimer
 	case OpFX15:
-		vm.delayTimer = vm.greg[oc.nibbles[1]]
+		vm.delayTimer = vm.greg[oc.Nibbles[1]]
 	case OpFX18:
-		vm.soundTimer = vm.greg[oc.nibbles[1]]
+		vm.soundTimer = vm.greg[oc.Nibbles[1]]
 	case OpFX29:
 		// Fonts start at address 0x050, and each character is 5 bytes tall
-		vm.idxreg = 0x050 + uint16(vm.greg[oc.nibbles[1]]&0x0F)*5
+		vm.idxreg = 0x050 + uint16(vm.greg[oc.Nibbles[1]]&0x0F)*5
 	default:
-		panic("unimplemented: " + oc.opcodeType)
+		panic("unimplemented: " + oc.OpcodeType)
 	}
 	vm.pc += 2
 }

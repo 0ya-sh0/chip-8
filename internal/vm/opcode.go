@@ -39,118 +39,118 @@ const (
 	OpFX65 = "FX65"
 )
 
-type parsedOpcode struct {
-	opcodeType string
-	nibbles    [4]uint8
+type ParsedOpcode struct {
+	OpcodeType string
+	Nibbles    [4]uint8
 }
 
-func parseOpcode(opcode [2]uint8) parsedOpcode {
-	nibbles := splitNibbles(opcode)
-	opcodeType := OpNA
+func ParseOpcode(opcode [2]uint8) ParsedOpcode {
+	Nibbles := splitNibbles(opcode)
+	OpcodeType := OpNA
 
-	switch nibbles[0] {
+	switch Nibbles[0] {
 	case 0x00:
-		if nibbles[1] == 0x00 && nibbles[2] == 0x0E && nibbles[3] == 0x00 {
-			opcodeType = Op00E0
-		} else if nibbles[1] == 0x00 && nibbles[2] == 0x0E && nibbles[3] == 0x0E {
-			opcodeType = Op00EE
+		if Nibbles[1] == 0x00 && Nibbles[2] == 0x0E && Nibbles[3] == 0x00 {
+			OpcodeType = Op00E0
+		} else if Nibbles[1] == 0x00 && Nibbles[2] == 0x0E && Nibbles[3] == 0x0E {
+			OpcodeType = Op00EE
 		} else {
-			opcodeType = Op0NNN
+			OpcodeType = Op0NNN
 		}
 	case 0x01:
-		opcodeType = Op1NNN
+		OpcodeType = Op1NNN
 	case 0x02:
-		opcodeType = Op2NNN
+		OpcodeType = Op2NNN
 	case 0x03:
-		opcodeType = Op3XNN
+		OpcodeType = Op3XNN
 	case 0x04:
-		opcodeType = Op4XNN
+		OpcodeType = Op4XNN
 	case 0x05:
-		if nibbles[3] == 0x00 {
-			opcodeType = Op5XY0
+		if Nibbles[3] == 0x00 {
+			OpcodeType = Op5XY0
 		}
 	case 0x06:
-		opcodeType = Op6XNN
+		OpcodeType = Op6XNN
 	case 0x07:
-		opcodeType = Op7XNN
+		OpcodeType = Op7XNN
 	case 0x08:
-		switch nibbles[3] {
+		switch Nibbles[3] {
 		case 0x00:
-			opcodeType = Op8XY0
+			OpcodeType = Op8XY0
 		case 0x01:
-			opcodeType = Op8XY1
+			OpcodeType = Op8XY1
 		case 0x02:
-			opcodeType = Op8XY2
+			OpcodeType = Op8XY2
 		case 0x03:
-			opcodeType = Op8XY3
+			OpcodeType = Op8XY3
 		case 0x04:
-			opcodeType = Op8XY4
+			OpcodeType = Op8XY4
 		case 0x05:
-			opcodeType = Op8XY5
+			OpcodeType = Op8XY5
 		case 0x06:
-			opcodeType = Op8XY6
+			OpcodeType = Op8XY6
 		case 0x07:
-			opcodeType = Op8XY7
+			OpcodeType = Op8XY7
 		case 0x0E:
-			opcodeType = Op8XYE
+			OpcodeType = Op8XYE
 		}
 	case 0x09:
-		if nibbles[3] == 0x00 {
-			opcodeType = Op9XY0
+		if Nibbles[3] == 0x00 {
+			OpcodeType = Op9XY0
 		}
 	case 0x0A:
-		opcodeType = OpANNN
+		OpcodeType = OpANNN
 	case 0x0B:
-		opcodeType = OpBNNN
+		OpcodeType = OpBNNN
 	case 0x0C:
-		opcodeType = OpCXNN
+		OpcodeType = OpCXNN
 	case 0x0D:
-		opcodeType = OpDXYN
+		OpcodeType = OpDXYN
 	case 0x0E:
-		if nibbles[2] == 0x09 && nibbles[3] == 0x0E {
-			opcodeType = OpEX9E
-		} else if nibbles[2] == 0x0A && nibbles[3] == 0x01 {
-			opcodeType = OpEXA1
+		if Nibbles[2] == 0x09 && Nibbles[3] == 0x0E {
+			OpcodeType = OpEX9E
+		} else if Nibbles[2] == 0x0A && Nibbles[3] == 0x01 {
+			OpcodeType = OpEXA1
 		}
 	case 0x0F:
-		switch nibbles[2] {
+		switch Nibbles[2] {
 		case 0x00:
-			if nibbles[3] == 0x07 {
-				opcodeType = OpFX07
-			} else if nibbles[3] == 0x0A {
-				opcodeType = OpFX0A
+			if Nibbles[3] == 0x07 {
+				OpcodeType = OpFX07
+			} else if Nibbles[3] == 0x0A {
+				OpcodeType = OpFX0A
 			}
 		case 0x01:
-			switch nibbles[3] {
+			switch Nibbles[3] {
 			case 0x05:
-				opcodeType = OpFX15
+				OpcodeType = OpFX15
 			case 0x08:
-				opcodeType = OpFX18
+				OpcodeType = OpFX18
 			case 0x0E:
-				opcodeType = OpFX1E
+				OpcodeType = OpFX1E
 			}
 		case 0x02:
-			if nibbles[3] == 0x09 {
-				opcodeType = OpFX29
+			if Nibbles[3] == 0x09 {
+				OpcodeType = OpFX29
 			}
 		case 0x03:
-			if nibbles[3] == 0x03 {
-				opcodeType = OpFX33
+			if Nibbles[3] == 0x03 {
+				OpcodeType = OpFX33
 			}
 		case 0x05:
-			if nibbles[3] == 0x05 {
-				opcodeType = OpFX55
+			if Nibbles[3] == 0x05 {
+				OpcodeType = OpFX55
 			}
 		case 0x06:
-			if nibbles[3] == 0x05 {
-				opcodeType = OpFX65
+			if Nibbles[3] == 0x05 {
+				OpcodeType = OpFX65
 			}
 		}
 	}
 
-	return parsedOpcode{
-		opcodeType: opcodeType,
-		nibbles:    nibbles,
+	return ParsedOpcode{
+		OpcodeType: OpcodeType,
+		Nibbles:    Nibbles,
 	}
 }
 
