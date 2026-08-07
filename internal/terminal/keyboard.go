@@ -1,4 +1,4 @@
-package keyboard
+package teminal
 
 import (
 	"os"

@@ -1,4 +1,4 @@
-package display
+package teminal
 
 import (
 	"bytes"
