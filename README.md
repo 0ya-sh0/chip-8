@@ -19,12 +19,12 @@ The VM core is fully decoupled from I/O. It talks to the outside world through t
 
 ```
                 +-----------------------------------+
-                |            CHIP-8 VM               |
-                |             (Core)                 |
-                |                                     |
-                |  - 4KB Memory      - Stack          |
-                |  - Registers (V0-VF) - Timers       |
-                |  - Opcode Decoder  - RNG             |
+                |            CHIP-8 VM              |
+                |             (Core)                |
+                |                                   |
+                |  - 4KB Memory      - Stack        |
+                |  - Registers (V0-VF) - Timers     |
+                |  - Opcode Decoder  - RNG          |
                 +-----------------------------------+
                    /              |              \
     [Outbound Port]        [Outbound Port]       [Outbound Port]
