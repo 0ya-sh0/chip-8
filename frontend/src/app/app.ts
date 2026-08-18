@@ -14,6 +14,7 @@ export class App implements OnInit {
   private webSocketService_ = inject(WebSocketService);
   private destroyRef = inject(DestroyRef);
   protected readonly title = signal('frontend');
+  public gameState: Array<Array<boolean>> = [];
 
   async ngOnInit() {
     try {
@@ -44,7 +45,6 @@ export class App implements OnInit {
   }
 
   private handleIncomingWSMessage(message: any): void {
-    // Process your message logic here
-    console.log('TypeScript received message:', message);
+    if(message.type === 'display.draw') this.gameState = message?.data;
   }
 }
