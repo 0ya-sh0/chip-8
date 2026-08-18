@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { WebSocketService } from './services/websocket.service';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { SoundService } from './services/sound.service';
 
 @Component({
   selector: 'app-root',
@@ -14,16 +15,11 @@ export class App implements OnInit {
   private webSocketService_ = inject(WebSocketService);
   private destroyRef = inject(DestroyRef);
   private cdr = inject(ChangeDetectorRef);
+  private soundService_ = inject (SoundService);
   protected readonly title = signal('frontend');
   public gameState: Array<Array<boolean>> = [];
 
   async ngOnInit() {
-    try {
-      const wsConnection = await this.webSocketService_.connect();
-      this.listenToWebSocket();
-    } catch (err) {
-      console.error("Error connecting to WebSocket", err);
-    }
   }
 
   private listenToWebSocket(){
@@ -50,5 +46,18 @@ export class App implements OnInit {
       this.gameState = message?.data;
       this.cdr.detectChanges();
     }
+    if(message.type === 'sound.play') {
+      this.soundService_.playBitSound(900, 0.1); 
+    }
+  }
+
+  async startGame() {
+    try {
+      const wsConnection = await this.webSocketService_.connect();
+    } catch (err) {
+      console.error("Error connecting to WebSocket", err);
+    }
+    this.soundService_.unlockAudio();
+    this.listenToWebSocket();
   }
 }
