@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, inject, OnInit, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { WebSocketService } from './services/websocket.service';
 import { firstValueFrom, Subscription } from 'rxjs';
@@ -13,6 +13,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 export class App implements OnInit {
   private webSocketService_ = inject(WebSocketService);
   private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
   protected readonly title = signal('frontend');
   public gameState: Array<Array<boolean>> = [];
 
@@ -45,6 +46,9 @@ export class App implements OnInit {
   }
 
   private handleIncomingWSMessage(message: any): void {
-    if(message.type === 'display.draw') this.gameState = message?.data;
+    if(message.type === 'display.draw') {
+      this.gameState = message?.data;
+      this.cdr.detectChanges();
+    }
   }
 }
