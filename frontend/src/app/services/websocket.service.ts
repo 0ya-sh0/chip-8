@@ -13,9 +13,9 @@ export interface WebSocketMessage {
 @Injectable({
   providedIn: 'root',
 })
-export class WebsocketService {
+export class WebSocketService {
   private socket: WebSocket | null = null;
-  private url = 'ws://localhost:8080/ws'; // Change to your Go server URL
+  private url = 'ws://localhost:9000/echo';
   
   private messagesSubject = new Subject<WebSocketMessage>();
   private connectionStatusSubject = new BehaviorSubject<boolean>(false);
@@ -31,7 +31,7 @@ export class WebsocketService {
   /**
    * Connect to WebSocket server
    */
-  connect(): Promise<void> {
+  connect(): Promise<void|boolean> {
     return new Promise((resolve, reject) => {
       try {
         this.socket = new WebSocket(this.url);
@@ -39,7 +39,7 @@ export class WebsocketService {
         this.socket.onopen = () => {
           console.log('WebSocket connected');
           this.connectionStatusSubject.next(true);
-          resolve();
+          resolve(true);
         };
 
         this.socket.onmessage = (event: MessageEvent) => {
