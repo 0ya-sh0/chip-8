@@ -1,5 +1,7 @@
-Chip-8
-<button (click)="startGame()">Start Game</button>
+<section class="top-bar">
+  <p class="title">Chip-8 Playground</p>
+  <button (click)="startGame()" class="btn-primary">Start Game</button>
+</section>
 <div class="viewport">
   @for (row of gameState; track $index) {
     <div class="pixel-row">
