@@ -15,8 +15,8 @@ export interface WebSocketMessage {
 })
 export class WebSocketService {
   private socket: WebSocket | null = null;
-  private url = 'ws://localhost:9000/echo';
-  
+  private url = 'ws://localhost:9000/heartbit';
+
   private messagesSubject = new Subject<WebSocketMessage>();
   private connectionStatusSubject = new BehaviorSubject<boolean>(false);
   private destroy$ = new Subject<void>();
@@ -26,12 +26,12 @@ export class WebSocketService {
   connectionStatus$ = this.connectionStatusSubject.asObservable();
   isConnected$ = this.connectionStatusSubject.asObservable();
 
-  constructor() {}
+  constructor() { }
 
   /**
    * Connect to WebSocket server
    */
-  connect(): Promise<void|boolean> {
+  connect(): Promise<void | boolean> {
     return new Promise((resolve, reject) => {
       try {
         this.socket = new WebSocket(this.url);
