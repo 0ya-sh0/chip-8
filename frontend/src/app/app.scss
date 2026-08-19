@@ -1,5 +1,60 @@
 @use '../app/common/variables' as *;
 
+.empty-state {
+    border: 4px solid $accent;
+    display: flex;
+    justify-content: center;
+    justify-self: center;
+    align-items: center;
+
+    width: calc($pixel-hw * 64);
+    height: calc($pixel-hw * 32);
+
+    font-family: "Pixelify Sans", sans-serif;
+    font-size: 24px;
+    font-weight: 400;
+    font-style: normal;
+    color: $fg-primary; 
+
+    position: relative; 
+    overflow: hidden;
+
+}
+
+.empty-state-tv-filter {
+
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 100%;
+
+    /* Apply the SVG filter hidden in the HTML */
+    filter: url(#tv-noise);
+    opacity: 0.5; /* Adjust opacity to make the static subtle or intense */
+    
+    /* Disable mouse interactions so you can click things underneath */
+    pointer-events: none; 
+    
+    /* Fast shifting animation to simulate flickering screen static */
+    animation: shiftStatic 0.15s steps(2) infinite;
+}
+
+/* Rapid positioning shifts randomize the noise patterns */
+@keyframes shiftStatic {
+    0% { transform: translate(0, 0); }
+    10% { transform: translate(-1%, -1%); }
+    20% { transform: translate(-2%, 1%); }
+    30% { transform: translate(1%, -2%); }
+    40% { transform: translate(-1%, 3%); }
+    50% { transform: translate(-2%, 1%); }
+    60% { transform: translate(1%, 3%); }
+    70% { transform: translate(2%, 1%); }
+    80% { transform: translate(-1%, -1%); }
+    90% { transform: translate(2%, -3%); }
+    100% { transform: translate(1%, -2%); }
+}
+
 .viewport {
     display: grid;
     width: fit-content;
@@ -15,11 +70,11 @@
     height: $pixel-hw;
     width: $pixel-hw;
 
-    background-color: rgb(40, 40, 40);
+    background-color: $pixel-off;
 }
 
 .pixel-active {
-    background-color: rgb(17, 113, 109);
+    background-color: $pixel-on;
 }
 
 .top-bar {

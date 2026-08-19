@@ -2,14 +2,33 @@
   <p class="title">Chip-8 Playground</p>
   <button (click)="startGame()" class="btn-primary">Start Game</button>
 </section>
-<div class="viewport">
-  @for (row of gameState; track $index) {
-    <div class="pixel-row">
-      @for (pixel of row; track $index) {
-        <div class="pixel-item" [class.pixel-active]="pixel"></div>
-      }
-    </div>
-  } @empty {
-    <p>No gamestate</p> 
-  }
-</div>
+@if (gameState.length) {
+  <div class="viewport">
+    @for (row of gameState; track $index) {
+      <div class="pixel-row">
+        @for (pixel of row; track $index) {
+          <div class="pixel-item" [class.pixel-active]="pixel"></div>
+        }
+      </div>
+    }
+  </div>
+}
+
+@if (!gameState.length) {
+  <div class="empty-state">
+    <p>No gamestate</p>
+    <div class="empty-state-tv-filter"></div>
+  </div>
+}
+
+<!-- Hidden SVG defining the digital noise filter asset -->
+<svg xmlns="http://w3.org" style="display: none;">
+  <filter id="tv-noise">
+    <!-- type="fractalNoise" creates grainy TV-like fuzz -->
+    <feTurbulence 
+      type="fractalNoise" 
+      baseFrequency="0.65" 
+      numOctaves="3" 
+      stitchTiles="stitch" />
+  </filter>
+</svg>
