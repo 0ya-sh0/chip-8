@@ -162,6 +162,7 @@ func jsonReader(c *websocket.Conn, ch chan<- KeyEvent) {
 			c.Close()
 			return
 		} else {
+			log.Printf("data %+v\n", data)
 			if tp, ok1 := data["type"]; ok1 {
 				if key, ok2 := data["key"]; ok2 && (tp == "key.down" || tp == "key.up") {
 					k := KeyEvent{}
