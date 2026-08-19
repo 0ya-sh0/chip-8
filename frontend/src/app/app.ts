@@ -107,6 +107,7 @@ export class App implements OnInit {
 
   async startGame() {
     try {
+      this.webSocketService_.disconnect();
       const wsConnection = await this.webSocketService_.connect();
     } catch (err) {
       console.error("Error connecting to WebSocket", err);
