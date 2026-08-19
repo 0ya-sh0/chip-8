@@ -171,6 +171,7 @@ func jsonReader(c *websocket.Conn, ch chan<- KeyEvent) {
 						k.tp = KEY_UP
 					}
 					k.key = key
+					log.Printf("key %+v\n", key)
 					ch <- k
 				}
 			}
