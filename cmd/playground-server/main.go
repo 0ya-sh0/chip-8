@@ -52,7 +52,7 @@ func heartbit(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 	pg := NewPlaygroundProvider(c)
 	game := vm.NewChip8VM(pg, pg, pg)
-	game.LoadROMFromFile("test-games/heart_monitor.ch8")
+	game.LoadROMFromFile("test-roms/6-keypad.ch8")
 	game.Start(context.Background())
 }
 
@@ -164,7 +164,7 @@ func jsonReader(c *websocket.Conn, ch chan<- KeyEvent) {
 		} else {
 			log.Printf("data %+v\n", data)
 			if tp, ok1 := data["type"]; ok1 {
-				if key, ok2 := data["key"]; ok2 && (tp == "key.down" || tp == "key.up") {
+				if key, ok2 := data["data"]; ok2 && (tp == "key.down" || tp == "key.up") {
 					k := KeyEvent{}
 					if tp == "key.down" {
 						k.tp = KEY_DOWN
