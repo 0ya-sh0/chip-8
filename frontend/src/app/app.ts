@@ -42,12 +42,19 @@ export class App implements OnInit {
   }
 
   private handleIncomingWSMessage(message: any): void {
-    if(message.type === 'display.draw') {
-      this.gameState = message?.data;
-      this.cdr.detectChanges();
-    }
-    if(message.type === 'sound.play') {
-      this.soundService_.playBitSound(900, 0.1); 
+    switch(message.type) {
+      case 'display.draw':
+        this.gameState = message?.data;
+        this.cdr.detectChanges();
+        break;
+      case 'sound.play':
+        if(!this.soundService_.isASoundPlaying)
+          this.soundService_.playBitSound(500, 10);
+        break;
+      case 'sound.stop':
+        if(this.soundService_.isASoundPlaying)
+          this.soundService_.stopSound(); 
+        break;
     }
   }
 

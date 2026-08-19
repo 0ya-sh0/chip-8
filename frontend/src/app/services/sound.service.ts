@@ -6,34 +6,91 @@ import { Injectable } from '@angular/core';
 export class SoundService {
   private audioCtx!: AudioContext;
 
+  private currentOscillator: OscillatorNode | null = null;
+  private currentGain: GainNode | null = null;
+
+  public isASoundPlaying = false;
+
   constructor() {
-    // Context is created but might start suspended by the browser
-    this.audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    this.audioCtx = new (window.AudioContext ||
+      (window as any).webkitAudioContext)();
   }
 
-  // Call this ONCE during your game's "Start" or "Splash" screen click
   unlockAudio(): void {
     if (this.audioCtx.state === 'suspended') {
       this.audioCtx.resume();
     }
   }
 
-  // Call this automatically anywhere in your game loop or logic
   playBitSound(frequency = 600, duration = 0.1): void {
     if (this.audioCtx.state === 'suspended') return;
+
+    // Stop any currently playing sound
+    this.stopSound();
 
     const osc = this.audioCtx.createOscillator();
     const gain = this.audioCtx.createGain();
 
-    osc.type = 'square'; 
-    osc.frequency.setValueAtTime(frequency, this.audioCtx.currentTime);
+    this.currentOscillator = osc;
+    this.currentGain = gain;
+    this.isASoundPlaying = true;
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(
+      frequency,
+      this.audioCtx.currentTime
+    );
 
     osc.connect(gain);
     gain.connect(this.audioCtx.destination);
 
-    osc.start();
-    // Smooth fade out to prevent speaker popping
-    gain.gain.exponentialRampToValueAtTime(0.00001, this.audioCtx.currentTime + duration);
-    osc.stop(this.audioCtx.currentTime + duration);
+    const now = this.audioCtx.currentTime;
+
+    gain.gain.setValueAtTime(1, now);
+    gain.gain.exponentialRampToValueAtTime(
+      0.00001,
+      now + duration
+    );
+
+    osc.start(now);
+    osc.stop(now + duration);
+
+    osc.onended = () => {
+      if (this.currentOscillator === osc) {
+        this.currentOscillator = null;
+        this.currentGain = null;
+        this.isASoundPlaying = false;
+      }
+    };
+  }
+
+  stopSound(): void {
+    if (this.currentOscillator) {
+      try {
+        // Fade out quickly to avoid a speaker click/pop
+        const now = this.audioCtx.currentTime;
+
+        if (this.currentGain) {
+          this.currentGain.gain.cancelScheduledValues(now);
+          this.currentGain.gain.setValueAtTime(
+            Math.max(this.currentGain.gain.value, 0.00001),
+            now
+          );
+          this.currentGain.gain.exponentialRampToValueAtTime(
+            0.00001,
+            now + 0.01
+          );
+        }
+
+        this.currentOscillator.stop(now + 0.01);
+      } catch {
+        // Oscillator may already have stopped
+      }
+
+      this.currentOscillator = null;
+      this.currentGain = null;
+    }
+
+    this.isASoundPlaying = false;
   }
 }
