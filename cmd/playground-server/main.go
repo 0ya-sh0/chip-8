@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -17,7 +18,7 @@ import (
 type ROM struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
-	Path string
+	Path string `json:"-"`
 }
 
 var roms = []ROM{}
@@ -41,10 +42,11 @@ func discoverRoms() {
 			if info.Size() == 0 {
 				continue
 			}
-			if strings.HasSuffix(info.Name(), ".ch8") {
+
+			if name, has := strings.CutSuffix(info.Name(), ".ch8"); has {
 				rom := ROM{
 					ID:   id,
-					Name: info.Name(),
+					Name: name,
 					Path: path.Join(d, info.Name()),
 				}
 				id++
@@ -59,7 +61,8 @@ func main() {
 	for _, rom := range roms {
 		log.Printf("%d: %v\n", rom.ID, rom.Name)
 	}
-	http.HandleFunc("/game/{romid}", game)
+	http.HandleFunc("/game/{romid}", playGame)
+	http.HandleFunc("GET /game", fetchGames)
 	err := http.ListenAndServe("localhost:9000", nil)
 	log.Fatal(err)
 }
@@ -68,7 +71,12 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func game(w http.ResponseWriter, r *http.Request) {
+func fetchGames(w http.ResponseWriter, r *http.Request) {
+	data, _ := json.Marshal(roms)
+	w.Write(data)
+}
+
+func playGame(w http.ResponseWriter, r *http.Request) {
 	romstr := r.PathValue("romid")
 	if romstr == "" {
 		return
