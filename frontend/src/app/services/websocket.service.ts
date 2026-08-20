@@ -15,7 +15,7 @@ export interface WebSocketMessage {
 })
 export class WebSocketService {
   private socket: WebSocket | null = null;
-  private url = 'ws://localhost:9000/heartbit';
+  private url = 'ws://localhost:9000/game/1';
 
   private messagesSubject = new Subject<WebSocketMessage>();
   private connectionStatusSubject = new BehaviorSubject<boolean>(false);

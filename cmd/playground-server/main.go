@@ -4,15 +4,62 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
+	"path"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/0ya-sh0/chip-8/internal/vm"
 	"github.com/gorilla/websocket"
 )
 
+type ROM struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Path string
+}
+
+var roms = []ROM{}
+
+func discoverRoms() {
+	id := 0
+	roms = []ROM{}
+	for _, d := range []string{"test-roms", "test-games", "more-roms"} {
+		entries, err := os.ReadDir(d)
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !entry.Type().IsRegular() {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+			if info.Size() == 0 {
+				continue
+			}
+			if strings.HasSuffix(info.Name(), ".ch8") {
+				rom := ROM{
+					ID:   id,
+					Name: info.Name(),
+					Path: path.Join(d, info.Name()),
+				}
+				id++
+				roms = append(roms, rom)
+			}
+		}
+	}
+}
+
 func main() {
-	http.HandleFunc("/echo", echo)
-	http.HandleFunc("/heartbit", heartbit)
+	discoverRoms()
+	for _, rom := range roms {
+		log.Printf("%d: %v\n", rom.ID, rom.Name)
+	}
+	http.HandleFunc("/game/{romid}", game)
 	err := http.ListenAndServe("localhost:9000", nil)
 	log.Fatal(err)
 }
@@ -21,29 +68,19 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
-func echo(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("upgrade:", err)
+func game(w http.ResponseWriter, r *http.Request) {
+	romstr := r.PathValue("romid")
+	if romstr == "" {
 		return
 	}
-	defer c.Close()
-	for {
-		mt, message, err := c.ReadMessage()
-		if err != nil {
-			log.Println("read:", err)
-			break
-		}
-		log.Printf("recv: %s", message)
-		err = c.WriteMessage(mt, message)
-		if err != nil {
-			log.Println("write:", err)
-			break
-		}
+	romid, err := strconv.Atoi(romstr)
+	if err != nil {
+		return
 	}
-}
-
-func heartbit(w http.ResponseWriter, r *http.Request) {
+	if romid < 0 || romid >= len(roms) {
+		return
+	}
+	log.Printf("selected rom: %v\n", romid)
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("upgrade:", err)
@@ -52,7 +89,7 @@ func heartbit(w http.ResponseWriter, r *http.Request) {
 	defer c.Close()
 	pg := NewPlaygroundProvider(c)
 	game := vm.NewChip8VM(pg, pg, pg)
-	game.LoadROMFromFile("test-roms/6-keypad.ch8")
+	game.LoadROMFromFile(roms[romid].Path)
 	game.Start(context.Background())
 }
 
