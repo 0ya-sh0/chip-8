@@ -3,7 +3,96 @@
 @import url('https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400..700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Geist+Pixel&display=swap');
 
+@mixin pixel-font($font-family, $font-size, $font-weight: 400, $font-style: normal) {
+    font-family: $font-family, sans-serif;
+    font-size: $font-size;
+    font-weight: $font-weight;
+    font-style: $font-style;
+}
+
+@mixin btn-primary($padding) {
+    border: 2px solid $accent;
+    padding: $padding;
+
+    background-color: transparent;
+    color: $accent;
+
+    cursor: pointer;
+    transition: all 0.1s ease;
+
+    &:hover {
+        background-color: $accent-secondary;
+        color: $fg-primary;
+    }
+
+    &:active {
+        background-color: $accent-tertiary;
+        color: $fg-primary;
+
+        transform: translateY(2px);
+    }
+}
+
+@mixin btn-ingame($padding) {
+    border: 2px solid $pixel-on;
+    padding: $padding;
+
+    background-color: transparent;
+    color: $pixel-on;
+
+    cursor: pointer;
+    transition: all 0.1s ease;
+
+    &:hover {
+        background-color: $in-game-dark;
+        color: $in-game-lightest;
+    }
+
+    &:active {
+        background-color: $in-game-darkest;
+        color: $in-game-lightest;
+
+        transform: translateY(2px);
+    }
+}
+
 body {
     background-color: $bg-primary;
     color: $fg-primary;
+}
+
+.btn-primary--large {
+    @include pixel-font("Geist Pixel", 18px);
+    @include btn-primary($padding: 8px 12px);
+}
+.btn-primary--medium {
+    @include pixel-font("Geist Pixel", 14px);
+    @include btn-primary($padding: 6px 10px);
+}
+.btn-ingame--large {
+    @include pixel-font("Geist Pixel", 18px);
+    @include btn-ingame($padding: 8px 12px);
+}
+
+//UTILITIES
+
+//write common mixins for these utilites
+.w-100 {    width: 100%;    }
+
+@mixin flex-gap($direction, $gap) {
+    display: flex;
+    flex-direction: $direction;
+    gap: $gap;
+    align-items: center;
+}
+
+.row-flex-gap-4 {   @include flex-gap(row, 4px);    }
+.row-flex-gap-8 {   @include flex-gap(row, 8px);    }
+.column-flex-gap-4 {   @include flex-gap(column, 4px);    }
+.column-flex-gap-8 {   @include flex-gap(column, 8px);    }
+
+ul.strip-list  {
+  list-style: none;
+  padding: 0;
+  margin: 0;
 }

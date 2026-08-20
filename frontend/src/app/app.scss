@@ -1,7 +1,6 @@
 @use '../app/common/variables' as *;
 
 .empty-state {
-    border: 4px solid $accent;
     display: flex;
     justify-content: center;
     justify-self: center;
@@ -18,7 +17,6 @@
 
     position: relative; 
     overflow: hidden;
-
 }
 
 .empty-state-tv-filter {
@@ -55,26 +53,11 @@
     100% { transform: translate(1%, -2%); }
 }
 
-.viewport {
-    display: grid;
-    width: fit-content;
-    justify-self: center;
-    grid-template-columns: repeat(64, $pixel-hw);
-    grid-template-rows: repeat(32, $pixel-hw);
-    gap: 0;
-
+.tv-container {
     border: 4px solid $accent;
-}
-
-.pixel-item {
-    height: $pixel-hw;
-    width: $pixel-hw;
-
-    background-color: $pixel-off;
-}
-
-.pixel-active {
-    background-color: $pixel-on;
+    width: 832px;
+    height: 416px;
+    justify-self: center;
 }
 
 .top-bar {
@@ -95,25 +78,6 @@
     color: $accent;
 }
 
-.btn-primary {
-    border: 2px solid $accent;
-    padding: 8px 12px;
-    background-color: transparent;
-    color: $accent;
-    font-family: "Geist Pixel", sans-serif;
-    font-size: 18px;
-    cursor: pointer;
-    transition: all 0.1s ease;
-
-    &:hover {
-        background-color: $accent-secondary;
-        color: $fg-primary;
-    }
-
-    &:active {
-        background-color: $accent-tertiary;
-        color: $fg-primary;
-
-        transform: translateY(2px);
-    }
+app-rom-picker {
+    background-color: $pixel-off;
 }

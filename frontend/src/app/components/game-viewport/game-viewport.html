@@ -1,0 +1,9 @@
+<div class="viewport">
+    @for (row of gameState; track $index) {
+        <div class="pixel-row">
+        @for (pixel of row; track $index) {
+            <div class="pixel-item" [class.pixel-active]="pixel"></div>
+        }
+        </div>
+    }
+</div>

@@ -1,0 +1,68 @@
+@use '../../common/variables.scss' as *;
+
+.loading-rom {
+    animation: loadingAnimation 1s infinite;
+}
+
+@keyframes loadingAnimation {
+    0% {
+        opacity: 100;
+        transform: translate(0, 0);
+    }
+    50% {
+        opacity: 50;
+        transform: translate(0, -10px);
+    }
+    100% {
+        opacity: 100;
+        transform: translate(0, 0);
+    }
+}
+
+.roms-container {
+    max-height: calc($pixel-hw * 32);
+    overflow-y: auto;
+    justify-self: center;
+    padding: 8px;
+
+    width: 60%;
+
+    /* IE and Legacy Edge */
+    -ms-overflow-style: none;
+    
+    /* Firefox and Modern Chromium Browsers */
+    scrollbar-width: none; 
+
+    /* Chrome, Safari, and Opera */
+    &::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+.roms-list {
+    li {
+        width: 100%;
+    }
+    padding: 12px;
+
+    button {
+        text-align: left;
+
+        &:hover {
+            transform: scale(1.05);
+            animation: pulse 1.5s infinite;
+        }
+    }
+}
+
+@keyframes pulse {
+    0% {
+        border-color: $in-game-dark;
+    }
+    50% {
+        border-color: $in-game-darkest;
+    }
+    100% {
+        border-color: $in-game-dark;
+    }
+}
