@@ -1,5 +1,7 @@
 package vm
 
+type FrameBuffer [64][32]bool
+
 type KeyboardProvider interface {
 	GetPressedKey() (key uint8, pressed bool)
 	IsKeyPressed(key uint8) bool
@@ -8,7 +10,7 @@ type KeyboardProvider interface {
 
 type DisplayProvider interface {
 	Clear()
-	Draw([64][32]bool)
+	Draw(FrameBuffer)
 	Close()
 }
 

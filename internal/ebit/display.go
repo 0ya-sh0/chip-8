@@ -25,11 +25,11 @@ func (e *EbitEngineAdapter) Render(screen *ebiten.Image) {
 
 // Clear implements [vm.DisplayProvider].
 func (e *EbitEngineAdapter) Clear() {
-	e.buf = [64][32]bool{}
+	e.buf = vm.FrameBuffer{}
 }
 
 // Draw implements [vm.DisplayProvider].
-func (e *EbitEngineAdapter) Draw(buf [64][32]bool) {
+func (e *EbitEngineAdapter) Draw(buf vm.FrameBuffer) {
 	e.buf = buf
 }
 

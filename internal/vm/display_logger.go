@@ -13,7 +13,7 @@ func (l *LoggerDisplay) Close() {
 }
 
 // Draw implements [vm.DisplayProvider].
-func (l *LoggerDisplay) Draw(data [64][32]bool) {
+func (l *LoggerDisplay) Draw(data FrameBuffer) {
 	fmt.Printf("Display: Draw\n")
 }
 

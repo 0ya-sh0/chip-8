@@ -23,7 +23,7 @@ func (t *TerminalDisplay) Clear() {
 }
 
 // Draw renders the 64x32 buffer to the terminal.
-func (t *TerminalDisplay) Draw(data [64][32]bool) {
+func (t *TerminalDisplay) Draw(data vm.FrameBuffer) {
 	var buf bytes.Buffer
 
 	// Move cursor to top-left (1,1) without clearing, reducing flicker

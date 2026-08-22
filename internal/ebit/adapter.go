@@ -3,13 +3,14 @@ package ebit
 import (
 	"log"
 
+	"github.com/0ya-sh0/chip-8/internal/vm"
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/hajimehoshi/ebiten/v2/audio"
 )
 
 type EbitEngineAdapter struct {
-	buf          [64][32]bool
+	buf          vm.FrameBuffer
 	offscreenImg *ebiten.Image
 	audioCtx     *audio.Context
 	audioPlayer  *audio.Player

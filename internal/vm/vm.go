@@ -32,7 +32,7 @@ type Chip8VM struct {
 	idxreg uint16
 	pc     uint16
 	// buf[col - x][row - y]
-	buf        [64][32]bool
+	buf        FrameBuffer
 	stack      []uint16
 	soundTimer uint8
 	delayTimer uint8
