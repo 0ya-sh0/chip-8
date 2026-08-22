@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/0ya-sh0/chip-8/internal/vm"
 	"github.com/gorilla/websocket"
@@ -143,6 +145,8 @@ type PlaygroundProvider struct {
 	inbox        <-chan KeyEvent
 	keys         [16]bool
 	playingSound bool
+	fbuff        atomic.Pointer[vm.FrameBuffer]
+	outbox       chan map[string]any
 }
 
 func (p *PlaygroundProvider) keyProcessor() {
@@ -194,10 +198,13 @@ func (p *PlaygroundProvider) keyProcessor() {
 }
 
 func NewPlaygroundProvider(c *websocket.Conn) *PlaygroundProvider {
-	ch := make(chan KeyEvent, 1024)
-	go jsonReader(c, ch)
-	obj := PlaygroundProvider{c: c, inbox: ch, mu: sync.Mutex{}}
+	inbox := make(chan KeyEvent, 1024)
+	outbox := make(chan map[string]any, 1024)
+	go jsonReader(c, inbox)
+	obj := PlaygroundProvider{c: c, inbox: inbox, mu: sync.Mutex{}, outbox: outbox}
 	go obj.keyProcessor()
+	go obj.sendMessage()
+	go obj.sendFrames()
 	return &obj
 }
 
@@ -235,9 +242,9 @@ func (p *PlaygroundProvider) PlaySound() {
 		return
 	}
 	p.playingSound = true
-	message := map[string]string{}
+	message := map[string]any{}
 	message["type"] = "sound.play"
-	p.c.WriteJSON(message)
+	p.outbox <- message
 }
 
 // StopSound implements [vm.SoundProvider].
@@ -246,24 +253,41 @@ func (p *PlaygroundProvider) StopSound() {
 		return
 	}
 	p.playingSound = false
-	message := map[string]string{}
+	message := map[string]any{}
 	message["type"] = "sound.stop"
-	p.c.WriteJSON(message)
+	p.outbox <- message
 }
 
 // Clear implements [vm.DisplayProvider].
 func (p *PlaygroundProvider) Clear() {
-	message := map[string]string{}
+	message := map[string]any{}
 	message["type"] = "display.clear"
-	p.c.WriteJSON(message)
+	p.outbox <- message
 }
 
 // Draw implements [vm.DisplayProvider].
-func (p *PlaygroundProvider) Draw(data [64][32]bool) {
-	message := map[string]any{}
-	message["type"] = "display.draw"
-	message["data"] = data
-	p.c.WriteJSON(message)
+func (p *PlaygroundProvider) Draw(data vm.FrameBuffer) {
+	p.fbuff.Store(&data)
+}
+
+func (p *PlaygroundProvider) sendFrames() {
+	tick := time.NewTicker(time.Second / 60)
+	defer tick.Stop()
+	for {
+		<-tick.C
+		if ptr := p.fbuff.Load(); ptr != nil {
+			message := map[string]any{}
+			message["type"] = "display.draw"
+			message["data"] = *ptr
+			p.outbox <- message
+		}
+	}
+}
+
+func (p *PlaygroundProvider) sendMessage() {
+	for m := range p.outbox {
+		p.c.WriteJSON(m)
+	}
 }
 
 // Close implements [vm.KeyboardProvider].
