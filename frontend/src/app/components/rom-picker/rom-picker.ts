@@ -1,8 +1,7 @@
-import { ChangeDetectorRef, Component, EventEmitter, inject, Output } from '@angular/core';
-import { NgIf } from "../../../../node_modules/@angular/common/types/_common_module-chunk";
-import { firstValueFrom } from 'rxjs/internal/firstValueFrom';
+import { Component, EventEmitter, inject, output } from '@angular/core';
 import { HttpService } from '../../services/http.service';
 import { environment } from '../../environments/environment';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-rom-picker',
@@ -11,25 +10,15 @@ import { environment } from '../../environments/environment';
   styleUrl: './rom-picker.scss',
 })
 export class RomPicker {
-  cdr = inject(ChangeDetectorRef);
-  romLoadSelected: boolean = false;
-  fetchedRoms: any = [];
   httpService_ = inject(HttpService);
 
-  @Output() romSelected = new EventEmitter<any>();
+  romSelected = output<any>();
 
-  ngOnInit() {
-    this.fetchRoms();
-  }
+  romLoadSelected: boolean = false;
+  fetchedRoms: any = toSignal(this.httpService_.httpGET(environment.fetchRoms), { initialValue: null });
 
   openRoms() {
     this.romLoadSelected = true;
-  }
-
-  async fetchRoms() {
-    // Fetch the list of ROMs from the backend
-    this.fetchedRoms = await firstValueFrom(this.httpService_.httpGET(environment.fetchRoms));
-    this.cdr.detectChanges();
   }
 
   loadRom(rom: any) {

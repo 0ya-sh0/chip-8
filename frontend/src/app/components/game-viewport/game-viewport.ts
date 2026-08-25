@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, DestroyRef, HostListener, inject, Input, input, OnDestroy, OnInit } from '@angular/core';
+import { Component, DestroyRef, HostListener, inject, input, OnDestroy, OnInit, signal, WritableSignal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SoundService } from '../../services/sound.service';
 import { WebSocketService } from '../../services/websocket.service';
@@ -11,14 +11,14 @@ import { environment } from '../../environments/environment';
   styleUrl: './game-viewport.scss',
 })
 export class GameViewport implements OnInit, OnDestroy {
-  @Input() rom: { id: number, name: string} = { id: 0, name: ''};
-  @Input() returnChip8Bindings: { [k: string]: string; } = {};
+  rom = input<{ id: number, name: string}>({ id: 0, name: ''});
+  returnChip8Bindings = input<{ [k: string]: string; }>({});
 
   private webSocketService_ = inject(WebSocketService);
   private destroyRef = inject(DestroyRef);
-  private cdr = inject(ChangeDetectorRef);
   private soundService_ = inject (SoundService);
-  gameState: Array<Array<boolean>> = [];
+
+  gameState: WritableSignal<boolean[][]> = signal([]);
 
   ngOnInit() {
     this.startGame();
@@ -31,7 +31,7 @@ export class GameViewport implements OnInit, OnDestroy {
   async startGame() {
     try {
       this.webSocketService_.disconnect();
-      const wsConnection = await this.webSocketService_.connect(environment.connectToGame.replace('{id}', this.rom?.id.toString()));
+      const wsConnection = await this.webSocketService_.connect(environment.connectToGame.replace('{id}', this.rom()?.id.toString()));
     } catch (err) {
       console.error("Error connecting to WebSocket", err);
     }
@@ -61,8 +61,7 @@ export class GameViewport implements OnInit, OnDestroy {
   private handleIncomingWSMessage(message: any): void {
     switch(message.type) {
       case 'display.draw':
-        this.gameState = message?.data;
-        this.cdr.detectChanges();
+        this.gameState.set(message?.data);
         break;
       case 'sound.play':
         if(!this.soundService_.isASoundPlaying)
@@ -77,12 +76,12 @@ export class GameViewport implements OnInit, OnDestroy {
 
   @HostListener('window:keydown', ['$event'])
   handleKeyboardDown(event: KeyboardEvent): void {
-    this.sendKeypress(false, this.returnChip8Bindings[event.code]);
+    this.sendKeypress(false, this.returnChip8Bindings()[event.code]);
   }
 
   @HostListener('window:keyup', ['$event'])
   handleKeyboardUp(event: KeyboardEvent): void {
-    this.sendKeypress(true, this.returnChip8Bindings[event.code]);
+    this.sendKeypress(true, this.returnChip8Bindings()[event.code]);
   }
 
   sendKeypress(up: boolean, key: string) {

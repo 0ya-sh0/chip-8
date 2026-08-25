@@ -2,11 +2,11 @@
   <p class="title">Chip-8 Playground</p>
   <!-- <button (click)="startGame()" class="btn-primary">Start Game</button> -->
 </section>
-<div class="tv-container" [class.empty-state]="!selectedRom">
-  @if (selectedRom) {
-    <app-game-viewport [rom]="selectedRom" [returnChip8Bindings]="returnChip8Bindings"></app-game-viewport>
+<div class="tv-container" [class.empty-state]="!selectedRom()">
+  @if (selectedRom()) {
+    <app-game-viewport [rom]="selectedRom()" [returnChip8Bindings]="returnChip8Bindings"></app-game-viewport>
   }
-  @if (!selectedRom) {
+  @if (!selectedRom()) {
     <app-rom-picker class="w-100" (romSelected)="openGame($event)"></app-rom-picker>
   }
 </div>

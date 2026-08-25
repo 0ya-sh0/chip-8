@@ -6,10 +6,10 @@
     <div class="empty-state-tv-filter"></div>
 }
 @else  -->
-@if (fetchedRoms.length) {
+@if (fetchedRoms().length) {
     <div class="roms-container column-flex-gap-4">
         <ul class="strip-list column-flex-gap-8 roms-list w-100">
-            @for (rom of fetchedRoms; track rom) {
+            @for (rom of fetchedRoms(); track rom) {
                 <li>
                     <button class="btn-ingame--large w-100" (click)="loadRom(rom)">
                         {{ rom.name }}

@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, DestroyRef, HostListener, inject, OnInit, signal } from '@angular/core';
+import { Component, DestroyRef, HostListener, inject, OnInit, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { GameViewport } from "./components/game-viewport/game-viewport";
 import { RomPicker } from "./components/rom-picker/rom-picker";
@@ -11,9 +11,8 @@ import { RomPicker } from "./components/rom-picker/rom-picker";
 })
 export class App implements OnInit {
   protected readonly title = signal('frontend');
-  private cdr = inject(ChangeDetectorRef);
   public gameState: Array<Array<boolean>> = [];
-  selectedRom: any = null;
+  selectedRom: any = signal(null);
   
   storedKeyBindings: { "1": string; "2": string; "3": string; C: string; "4": string; "5": string; "6": string; D: string; "7": string; "8": string; "9": string; E: string; A: string; "0": string; B: string; F: string; } = {
     1: '',
@@ -69,8 +68,7 @@ export class App implements OnInit {
     // Implementation for opening the game with the selected ROM
     console.log('Selected ROM:', rom);
 
-    this.selectedRom = rom;
-    this.cdr.detectChanges();
+    this.selectedRom.set(rom);
   }
 
 }
