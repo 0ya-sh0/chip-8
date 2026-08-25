@@ -31,8 +31,9 @@ export class GameViewport implements OnInit, OnDestroy {
 
   async startGame() {
     try {
+      if (!this.rom() || !this.rom()?.id) { throw new Error("No ROM selected. Cannot start game."); }
       this.webSocketService_.disconnect();
-      const wsConnection = await this.webSocketService_.connect(environment.connectToGame.replace('{id}', this.rom()?.id.toString()));
+      const wsConnection = await this.webSocketService_.connect(environment.connectToGame.replace('{id}', this.rom().id.toString()));
       this.soundService_.unlockAudio();
       this.listenToWebSocket();
     } catch (err) {
@@ -62,7 +63,7 @@ export class GameViewport implements OnInit, OnDestroy {
   private handleIncomingWSMessage(message: any): void {
     switch(message.type) {
       case 'display.draw':
-        this.gameState.set(message?.data);
+        this.gameState.set(message.data);
         break;
       case 'sound.play':
         if(!this.soundService_.isASoundPlaying)
