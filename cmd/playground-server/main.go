@@ -140,13 +140,12 @@ const (
 )
 
 type PlaygroundProvider struct {
-	mu           sync.Mutex
-	c            *websocket.Conn
-	inbox        <-chan KeyEvent
-	keys         [16]bool
-	playingSound bool
-	fbuff        atomic.Pointer[vm.FrameBuffer]
-	outbox       chan map[string]any
+	mu     sync.Mutex
+	c      *websocket.Conn
+	inbox  <-chan KeyEvent
+	keys   [16]bool
+	fbuff  atomic.Pointer[vm.FrameBuffer]
+	outbox chan map[string]any
 }
 
 func (p *PlaygroundProvider) keyProcessor() {
@@ -238,10 +237,6 @@ func jsonReader(c *websocket.Conn, ch chan<- KeyEvent) {
 
 // PlaySound implements [vm.SoundProvider].
 func (p *PlaygroundProvider) PlaySound() {
-	if p.playingSound {
-		return
-	}
-	p.playingSound = true
 	message := map[string]any{}
 	message["type"] = "sound.play"
 	p.outbox <- message
@@ -249,10 +244,6 @@ func (p *PlaygroundProvider) PlaySound() {
 
 // StopSound implements [vm.SoundProvider].
 func (p *PlaygroundProvider) StopSound() {
-	if !p.playingSound {
-		return
-	}
-	p.playingSound = false
 	message := map[string]any{}
 	message["type"] = "sound.stop"
 	p.outbox <- message
