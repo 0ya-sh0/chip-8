@@ -32,13 +32,14 @@ type Chip8VM struct {
 	idxreg uint16
 	pc     uint16
 	// buf[col - x][row - y]
-	buf        FrameBuffer
-	stack      []uint16
-	soundTimer uint8
-	delayTimer uint8
-	key        KeyboardProvider
-	display    DisplayProvider
-	sound      SoundProvider
+	buf           FrameBuffer
+	stack         []uint16
+	soundPlaying  bool
+	soundTimerEnd time.Time
+	delayTimerEnd time.Time
+	key           KeyboardProvider
+	display       DisplayProvider
+	sound         SoundProvider
 }
 
 func NewChip8VM(key KeyboardProvider, display DisplayProvider, sound SoundProvider) *Chip8VM {
@@ -62,11 +63,13 @@ func (vm *Chip8VM) LoadROMFromFile(filepath string) error {
 
 func (vm *Chip8VM) Start(ctx context.Context) {
 	cpuTick := time.NewTicker(time.Second / 500)
-	delayTick := time.NewTicker(time.Second / 60)
-
 	defer cpuTick.Stop()
-	defer delayTick.Stop()
-
+	defer func() {
+		if vm.soundPlaying {
+			vm.soundPlaying = false
+			vm.sound.StopSound()
+		}
+	}()
 	for {
 		select {
 		case <-ctx.Done():
@@ -80,25 +83,20 @@ func (vm *Chip8VM) Start(ctx context.Context) {
 				return
 			}
 			vm.exec(parsedOpcode)
-		case <-delayTick.C:
-			if vm.delayTimer > 0 {
-				vm.delayTimer--
-			}
-
-			// Sound logic
-			if vm.soundTimer > 0 {
-				vm.soundTimer--
-				// Trigger play. A robust SoundProvider should ignore this if already playing.
-				vm.sound.PlaySound()
-			} else {
-				// Timer hit 0, stop the sound.
-				vm.sound.StopSound()
-			}
 		}
 	}
 }
 
+const tickDuration = time.Second / 60
+
 func (vm *Chip8VM) exec(oc ParsedOpcode) {
+	if vm.soundPlaying {
+		if time.Now().After(vm.soundTimerEnd) {
+			vm.soundPlaying = false
+			vm.sound.StopSound()
+		}
+	}
+
 	// fmt.Printf("%X => %+v\n", [2]uint8{vm.ram[vm.pc], vm.ram[vm.pc+1]}, oc)
 	switch oc.OpcodeType {
 	case Op0NNN:
@@ -111,11 +109,7 @@ func (vm *Chip8VM) exec(oc ParsedOpcode) {
 		vm.pc = nnn + uint16(vm.greg[0])
 		return
 	case Op00E0:
-		for col := 0; col < 64; col++ {
-			for row := 0; row < 32; row++ {
-				vm.buf[col][row] = false
-			}
-		}
+		vm.buf = FrameBuffer{}
 		vm.display.Clear()
 	case Op6XNN:
 		// Const: Sets VX to NN
@@ -317,17 +311,25 @@ func (vm *Chip8VM) exec(oc ParsedOpcode) {
 		x := oc.Nibbles[1]
 		key, pressed := vm.key.GetPressedKey()
 		if !pressed {
-			// No key pressed: return early WITHOUT advancing vm.pc.
-			// Timers in Start() continue ticking while CPU repeatedly checks this opcode.
 			return
 		}
 		vm.greg[x] = key
 	case OpFX07:
-		vm.greg[oc.Nibbles[1]] = vm.delayTimer
+		var remaining uint8
+		if d := time.Until(vm.delayTimerEnd); d > 0 {
+			// Round up: a tick that's partially elapsed hasn't expired yet.
+			remaining = uint8((d + tickDuration - 1) / tickDuration)
+		}
+		vm.greg[oc.Nibbles[1]] = remaining
 	case OpFX15:
-		vm.delayTimer = vm.greg[oc.Nibbles[1]]
+		vm.delayTimerEnd = time.Now().Add(time.Duration(vm.greg[oc.Nibbles[1]]) * tickDuration)
 	case OpFX18:
-		vm.soundTimer = vm.greg[oc.Nibbles[1]]
+		n := vm.greg[oc.Nibbles[1]]
+		vm.soundTimerEnd = time.Now().Add(time.Duration(n) * tickDuration)
+		if n > 0 && !vm.soundPlaying {
+			vm.soundPlaying = true
+			vm.sound.PlaySound()
+		}
 	case OpFX29:
 		// Fonts start at address 0x050, and each character is 5 bytes tall
 		vm.idxreg = 0x050 + uint16(vm.greg[oc.Nibbles[1]]&0x0F)*5
