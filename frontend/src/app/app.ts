@@ -12,7 +12,6 @@ import { KeyBindings } from './common/models';
 })
 export class App implements OnInit {
   protected readonly title = signal('frontend');
-  public gameState: Array<Array<boolean>> = [];
   selectedRom: any = signal(null);
   
   storedKeyBindings:KeyBindings = {

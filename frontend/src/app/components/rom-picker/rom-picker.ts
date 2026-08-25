@@ -1,4 +1,4 @@
-import { Component, EventEmitter, inject, output } from '@angular/core';
+import { Component, inject, output } from '@angular/core';
 import { environment } from '../../environments/environment';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RomDetails } from '../../common/models';
