@@ -139,11 +139,16 @@ const (
 	KEY_F
 )
 
+type keyPressState struct {
+	pressed bool
+	ts      time.Time
+}
+
 type PlaygroundProvider struct {
 	mu     sync.Mutex
 	c      *websocket.Conn
 	inbox  <-chan KeyEvent
-	keys   [16]bool
+	keys   [16]keyPressState
 	fbuff  atomic.Pointer[vm.FrameBuffer]
 	outbox chan map[string]any
 }
@@ -188,9 +193,13 @@ func (p *PlaygroundProvider) keyProcessor() {
 		}
 		p.mu.Lock()
 		if event.tp == KEY_DOWN {
-			p.keys[code] = true
+			if !p.keys[code].pressed {
+				p.keys[code].pressed = true
+				p.keys[code].ts = time.Now()
+			}
 		} else {
-			p.keys[code] = false
+			p.keys[code].pressed = false
+			p.keys[code].ts = p.keys[code].ts.Add(time.Millisecond * 300)
 		}
 		p.mu.Unlock()
 	}
@@ -288,9 +297,9 @@ func (p *PlaygroundProvider) Close() {
 func (p *PlaygroundProvider) GetPressedKey() (key uint8, pressed bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
+	now := time.Now()
 	for key, state := range p.keys {
-		if state {
+		if state.pressed || state.ts.After(now) {
 			return uint8(key), true
 		}
 	}
@@ -302,7 +311,7 @@ func (p *PlaygroundProvider) GetPressedKey() (key uint8, pressed bool) {
 func (p *PlaygroundProvider) IsKeyPressed(key uint8) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	return p.keys[key]
+	return p.keys[key].pressed || p.keys[key].ts.After(time.Now())
 }
 
 var _ vm.KeyboardProvider = (*PlaygroundProvider)(nil)
