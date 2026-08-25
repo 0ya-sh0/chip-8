@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SoundService } from '../../services/sound.service';
 import { WebSocketService } from '../../services/websocket.service';
 import { environment } from '../../environments/environment';
+import { RomDetails } from '../../common/models';
 
 @Component({
   selector: 'app-game-viewport',
@@ -11,7 +12,7 @@ import { environment } from '../../environments/environment';
   styleUrl: './game-viewport.scss',
 })
 export class GameViewport implements OnInit, OnDestroy {
-  rom = input<{ id: number, name: string}>({ id: 0, name: ''});
+  rom = input<RomDetails>({ id: 0, name: ''});
   returnChip8Bindings = input<{ [k: string]: string; }>({});
 
   private webSocketService_ = inject(WebSocketService);

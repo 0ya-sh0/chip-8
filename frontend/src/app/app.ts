@@ -2,6 +2,7 @@ import { Component, DestroyRef, HostListener, inject, OnInit, signal } from '@an
 import { RouterOutlet } from '@angular/router';
 import { GameViewport } from "./components/game-viewport/game-viewport";
 import { RomPicker } from "./components/rom-picker/rom-picker";
+import { KeyBindings } from './common/models';
 
 @Component({
   selector: 'app-root',
@@ -14,7 +15,7 @@ export class App implements OnInit {
   public gameState: Array<Array<boolean>> = [];
   selectedRom: any = signal(null);
   
-  storedKeyBindings: { "1": string; "2": string; "3": string; C: string; "4": string; "5": string; "6": string; D: string; "7": string; "8": string; "9": string; E: string; A: string; "0": string; B: string; F: string; } = {
+  storedKeyBindings:KeyBindings = {
     1: '',
     2: '',
     3: '',
