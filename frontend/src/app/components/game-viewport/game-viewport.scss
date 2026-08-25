@@ -1,0 +1,21 @@
+@use '../../common/variables.scss' as *;
+
+.viewport {
+    display: grid;
+    width: fit-content;
+    justify-self: center;
+    grid-template-columns: repeat(64, $pixel-hw);
+    grid-template-rows: repeat(32, $pixel-hw);
+    gap: 0;
+}
+
+.pixel-item {
+    height: $pixel-hw;
+    width: $pixel-hw;
+
+    background-color: $pixel-off;
+}
+
+.pixel-active {
+    background-color: $pixel-on;
+}

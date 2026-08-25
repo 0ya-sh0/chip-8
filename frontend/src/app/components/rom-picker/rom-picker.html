@@ -1,0 +1,40 @@
+<!-- @if (!romLoadSelected) {
+    <div class="column-flex-gap-4">
+        <p>No game loaded.</p>
+        <button class="btn-primary--medium" (click)="openRoms()">Load a ROM</button>
+    </div>
+    <div class="empty-state-tv-filter"></div>
+}
+@else  -->
+@if (fetchedRoms().length) {
+    <div class="roms-container column-flex-gap-4">
+        <ul class="strip-list column-flex-gap-8 roms-list w-100">
+            @for (rom of fetchedRoms(); track rom) {
+                <li>
+                    <button class="btn-ingame--large w-100" (click)="loadRom(rom)">
+                        {{ rom.name }}
+                    </button>
+                </li>
+            }
+        </ul>
+    </div>
+}
+@else {
+    <div class=" loading-rom">
+        <p>Loading ROMs...</p>
+    </div>
+}
+
+
+
+<!-- Hidden SVG defining the digital noise filter asset -->
+<svg xmlns="http://w3.org" style="display: none;">
+  <filter id="tv-noise">
+    <!-- type="fractalNoise" creates grainy TV-like fuzz -->
+    <feTurbulence 
+      type="fractalNoise" 
+      baseFrequency="0.65" 
+      numOctaves="3" 
+      stitchTiles="stitch" />
+  </filter>
+</svg>

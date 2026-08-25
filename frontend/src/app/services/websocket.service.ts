@@ -1,7 +1,5 @@
 import { Injectable } from '@angular/core';
-import { BehaviorSubject } from 'rxjs/internal/BehaviorSubject';
-import { Observable } from 'rxjs/internal/Observable';
-import { Subject } from 'rxjs/internal/Subject';
+import { Subject, BehaviorSubject, Observable } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 
 export interface WebSocketMessage {
@@ -15,7 +13,6 @@ export interface WebSocketMessage {
 })
 export class WebSocketService {
   private socket: WebSocket | null = null;
-  private url = 'ws://localhost:9000/game/1';
 
   private messagesSubject = new Subject<WebSocketMessage>();
   private connectionStatusSubject = new BehaviorSubject<boolean>(false);
@@ -31,10 +28,10 @@ export class WebSocketService {
   /**
    * Connect to WebSocket server
    */
-  connect(): Promise<void | boolean> {
+  connect(url: string): Promise<void | boolean> {
     return new Promise((resolve, reject) => {
       try {
-        this.socket = new WebSocket(this.url);
+        this.socket = new WebSocket(url);
 
         this.socket.onopen = () => {
           console.log('WebSocket connected');
@@ -60,8 +57,6 @@ export class WebSocketService {
         this.socket.onclose = () => {
           console.log('WebSocket disconnected');
           this.connectionStatusSubject.next(false);
-          // Optional: Auto-reconnect after 3 seconds
-          setTimeout(() => this.connect(), 3000);
         };
       } catch (error) {
         reject(error);
