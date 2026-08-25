@@ -260,9 +260,8 @@ func (p *PlaygroundProvider) StopSound() {
 
 // Clear implements [vm.DisplayProvider].
 func (p *PlaygroundProvider) Clear() {
-	message := map[string]any{}
-	message["type"] = "display.clear"
-	p.outbox <- message
+	buf := vm.FrameBuffer{}
+	p.fbuff.Store(&buf)
 }
 
 // Draw implements [vm.DisplayProvider].
