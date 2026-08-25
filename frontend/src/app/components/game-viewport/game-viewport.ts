@@ -33,11 +33,11 @@ export class GameViewport implements OnInit, OnDestroy {
     try {
       this.webSocketService_.disconnect();
       const wsConnection = await this.webSocketService_.connect(environment.connectToGame.replace('{id}', this.rom()?.id.toString()));
+      this.soundService_.unlockAudio();
+      this.listenToWebSocket();
     } catch (err) {
-      console.error("Error connecting to WebSocket", err);
+      console.error("Error starting game", err);
     }
-    this.soundService_.unlockAudio();
-    this.listenToWebSocket();
   }
 
   private listenToWebSocket(){
