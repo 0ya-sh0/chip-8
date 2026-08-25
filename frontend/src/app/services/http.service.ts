@@ -7,7 +7,7 @@ import { inject, Injectable } from '@angular/core';
 export class HttpService {
   private httpClient = inject(HttpClient);
   
-  httpGET(url: string, options?: any) {
-    return this.httpClient.get(url, options);
+  httpGET<T>(url: string, options?: { [key: string]: any }) {
+    return this.httpClient.get<T>(url, options);
   }
 }

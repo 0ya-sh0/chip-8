@@ -2,6 +2,7 @@ import { Component, EventEmitter, inject, output } from '@angular/core';
 import { HttpService } from '../../services/http.service';
 import { environment } from '../../environments/environment';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { RomDetails } from '../../common/models';
 
 @Component({
   selector: 'app-rom-picker',
@@ -12,16 +13,16 @@ import { toSignal } from '@angular/core/rxjs-interop';
 export class RomPicker {
   httpService_ = inject(HttpService);
 
-  romSelected = output<any>();
+  romSelected = output<RomDetails>();
 
   romLoadSelected: boolean = false;
-  fetchedRoms: any = toSignal(this.httpService_.httpGET(environment.fetchRoms), { initialValue: null });
+  fetchedRoms = toSignal(this.httpService_.httpGET<RomDetails[]>(environment.fetchRoms), { initialValue: [] });
 
   openRoms() {
     this.romLoadSelected = true;
   }
 
-  loadRom(rom: any) {
+  loadRom(rom: RomDetails) {
     // Implementation for loading the selected ROM
     this.romSelected.emit(rom);
   }
