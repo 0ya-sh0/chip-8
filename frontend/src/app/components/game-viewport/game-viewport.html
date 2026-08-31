@@ -1,9 +1,13 @@
+<!--
+  A canvas, not a grid of divs. The previous markup created 2048 elements and
+  re-rendered them on every frame; at 60fps that is ~123k DOM updates a second.
+  The canvas is sized to the emulator's native 64x32 and scaled up by CSS, so a
+  frame is one putImageData call.
+-->
 <div class="viewport">
-    @for (row of gameState(); track $index) {
-        <div class="pixel-row">
-        @for (pixel of row; track $index) {
-            <div class="pixel-item" [class.pixel-active]="pixel"></div>
-        }
-        </div>
-    }
+  <canvas #screen class="screen" [attr.width]="width()" [attr.height]="height()"></canvas>
+
+  @if (error()) {
+    <p class="viewport-error" role="alert">{{ error() }}</p>
+  }
 </div>

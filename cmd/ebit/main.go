@@ -1,9 +1,10 @@
+// Command chip8-gui runs a CHIP-8 ROM in an Ebitengine window.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/0ya-sh0/chip-8/internal/ebit"
@@ -11,47 +12,69 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 )
 
+const scale = 15
+
+// Game adapts the emulator to Ebitengine's game loop.
 type Game struct {
-	chip8   *vm.Chip8VM
 	adapter *ebit.EbitEngineAdapter
+	cancel  context.CancelFunc
+	done    <-chan error
 }
 
+// Update runs at 60Hz on Ebitengine's goroutine. Input is sampled here because
+// Ebitengine's key state is only valid inside Update; the VM reads the latch
+// the adapter fills, which is safe to poll from its own goroutine.
 func (g *Game) Update() error {
-	// Ebitengine update loop runs at 60Hz
-	return nil
+	g.adapter.PollInput()
+
+	select {
+	case err := <-g.done:
+		if err != nil && !errors.Is(err, context.Canceled) {
+			return err
+		}
+		return ebiten.Termination
+	default:
+		return nil
+	}
 }
 
-func (g *Game) Draw(screen *ebiten.Image) {
-	g.adapter.Render(screen)
-}
+func (g *Game) Draw(screen *ebiten.Image) { g.adapter.Render(screen) }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return 960, 480 // Scaled resolution
+	return vm.ScreenWidth * scale, vm.ScreenHeight * scale
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("Usage: ./chip-8 row.chip8\n")
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "chip8-gui:", err)
 		os.Exit(1)
 	}
-	romPath := os.Args[1]
+}
+
+func run() error {
+	if len(os.Args) < 2 {
+		return errors.New("usage: chip8-gui <rom.ch8>")
+	}
 
 	adapter := ebit.NewEbitenAdapter()
-	chip8 := vm.NewChip8VM(adapter, adapter, adapter)
-	if err := chip8.LoadROMFromFile(romPath); err != nil {
-		fmt.Printf("Failed to load ROM: %v\n", err)
-		return
+	machine := vm.NewChip8VM(adapter, adapter, adapter)
+	if err := machine.LoadROMFromFile(os.Args[1]); err != nil {
+		return err
 	}
 
-	// Start CPU loop in background goroutine
-	go chip8.Start(context.Background())
+	// The VM runs on its own goroutine; cancelling on return guarantees it does
+	// not outlive the window.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	ebiten.SetWindowSize(960, 480)
-	ebiten.SetWindowTitle("CHIP-8 Emulator (Ebitengine GUI)")
+	done := make(chan error, 1)
+	go func() { done <- machine.Start(ctx) }()
 
-	game := &Game{chip8: chip8, adapter: adapter}
-	if err := ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
+	ebiten.SetWindowSize(vm.ScreenWidth*scale, vm.ScreenHeight*scale)
+	ebiten.SetWindowTitle("CHIP-8")
+
+	if err := ebiten.RunGame(&Game{adapter: adapter, cancel: cancel, done: done}); err != nil {
+		return err
 	}
-
+	return nil
 }

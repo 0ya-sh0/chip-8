@@ -1,103 +1,129 @@
-import { Injectable } from '@angular/core';
+import { Injectable, OnDestroy } from '@angular/core';
 import { Subject, BehaviorSubject, Observable } from 'rxjs';
-import { filter, takeUntil } from 'rxjs/operators';
+import { filter } from 'rxjs/operators';
 
-export interface WebSocketMessage {
+/** JSON control message from the server. */
+export interface ControlMessage {
   type: string;
-  data: any;
-  timestamp?: number;
+  data?: string;
+  /** Present on `display.init` only. */
+  width?: number;
+  height?: number;
 }
 
+/** JSON message sent to the server. */
+export interface ClientMessage {
+  type: string;
+  data?: string;
+}
+
+/**
+ * WebSocketService owns the connection to the playground server.
+ *
+ * The server uses the two WebSocket message types to separate two very
+ * different kinds of traffic, so this service exposes two streams:
+ *
+ * - `frames$` carries binary framebuffers: 256 bytes, one bit per pixel, in
+ *   scanline order, MSB first. Sending one boolean per pixel as JSON was ~12.4KB
+ *   for the same 2048 pixels.
+ * - `control$` carries occasional JSON messages (sound, display geometry).
+ *
+ * `binaryType = 'arraybuffer'` is what makes the binary path work; without it
+ * the browser delivers a Blob and every frame has to go through an async read.
+ */
 @Injectable({
   providedIn: 'root',
 })
-export class WebSocketService {
+export class WebSocketService implements OnDestroy {
   private socket: WebSocket | null = null;
 
-  private messagesSubject = new Subject<WebSocketMessage>();
+  private controlSubject = new Subject<ControlMessage>();
+  private framesSubject = new Subject<Uint8Array>();
   private connectionStatusSubject = new BehaviorSubject<boolean>(false);
-  private destroy$ = new Subject<void>();
 
-  // Public observables
-  messages$ = this.messagesSubject.asObservable();
-  connectionStatus$ = this.connectionStatusSubject.asObservable();
-  isConnected$ = this.connectionStatusSubject.asObservable();
+  readonly control$ = this.controlSubject.asObservable();
+  readonly frames$ = this.framesSubject.asObservable();
+  readonly connectionStatus$ = this.connectionStatusSubject.asObservable();
 
-  constructor() { }
+  /** Opens a connection, resolving once the socket is open. */
+  connect(url: string): Promise<void> {
+    this.disconnect();
 
-  /**
-   * Connect to WebSocket server
-   */
-  connect(url: string): Promise<void | boolean> {
-    return new Promise((resolve, reject) => {
-      try {
-        this.socket = new WebSocket(url);
+    return new Promise<void>((resolve, reject) => {
+      let settled = false;
 
-        this.socket.onopen = () => {
-          console.log('WebSocket connected');
-          this.connectionStatusSubject.next(true);
-          resolve(true);
-        };
+      const socket = new WebSocket(url);
+      socket.binaryType = 'arraybuffer';
+      this.socket = socket;
 
-        this.socket.onmessage = (event: MessageEvent) => {
+      socket.onopen = () => {
+        settled = true;
+        this.connectionStatusSubject.next(true);
+        resolve();
+      };
+
+      socket.onmessage = (event: MessageEvent) => {
+        if (typeof event.data === 'string') {
           try {
-            const message: WebSocketMessage = JSON.parse(event.data);
-            this.messagesSubject.next(message);
+            this.controlSubject.next(JSON.parse(event.data) as ControlMessage);
           } catch (error) {
-            console.error('Failed to parse message:', error);
+            console.error('websocket: bad control message', error);
           }
-        };
+          return;
+        }
+        this.framesSubject.next(new Uint8Array(event.data as ArrayBuffer));
+      };
 
-        this.socket.onerror = (error: Event) => {
-          console.error('WebSocket error:', error);
-          this.connectionStatusSubject.next(false);
-          reject(error);
-        };
+      socket.onerror = (event: Event) => {
+        this.connectionStatusSubject.next(false);
+        // Only the failure to connect is the promise's business; later errors
+        // surface through connectionStatus$ and onclose.
+        if (!settled) {
+          settled = true;
+          reject(new Error('websocket connection failed'));
+        }
+      };
 
-        this.socket.onclose = () => {
-          console.log('WebSocket disconnected');
-          this.connectionStatusSubject.next(false);
-        };
-      } catch (error) {
-        reject(error);
-      }
+      socket.onclose = () => {
+        this.connectionStatusSubject.next(false);
+        if (!settled) {
+          settled = true;
+          reject(new Error('websocket closed before opening'));
+        }
+      };
     });
   }
 
-  /**
-   * Send message to server
-   */
-  send(message: WebSocketMessage): void {
-    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+  send(message: ClientMessage): void {
+    if (this.socket?.readyState === WebSocket.OPEN) {
       this.socket.send(JSON.stringify(message));
-    } else {
-      console.warn('WebSocket is not connected');
     }
   }
 
-  /**
-   * Subscribe to specific message types
-   */
-  onMessage(type: string): Observable<WebSocketMessage> {
-    return this.messages$.pipe(
-      filter(msg => msg.type === type),
-      takeUntil(this.destroy$)
-    );
+  /** Emits only control messages of the given type. */
+  onControl(type: string): Observable<ControlMessage> {
+    return this.control$.pipe(filter((msg) => msg.type === type));
   }
 
-  /**
-   * Disconnect from server
-   */
   disconnect(): void {
-    if (this.socket) {
-      this.socket.close();
-      this.socket = null;
+    const socket = this.socket;
+    if (!socket) {
+      return;
     }
+    this.socket = null;
+    // Drop the handlers before closing so a late event cannot push state for a
+    // connection the caller has already abandoned.
+    socket.onopen = null;
+    socket.onmessage = null;
+    socket.onerror = null;
+    socket.onclose = null;
+    socket.close();
+    this.connectionStatusSubject.next(false);
   }
 
   ngOnDestroy(): void {
-    this.destroy$.next();
-    this.destroy$.complete();
     this.disconnect();
+    this.controlSubject.complete();
+    this.framesSubject.complete();
   }
 }

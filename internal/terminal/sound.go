@@ -1,4 +1,4 @@
-package teminal
+package terminal
 
 import "fmt"
 

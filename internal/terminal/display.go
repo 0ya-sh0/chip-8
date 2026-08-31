@@ -1,52 +1,109 @@
-package teminal
+package terminal
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/0ya-sh0/chip-8/internal/vm"
 )
 
-// TerminalDisplay renders the CHIP-8 framebuffer to the terminal using ANSI escape codes.
-type TerminalDisplay struct{}
+// RefreshInterval matches the 60Hz scanout of the original hardware.
+const RefreshInterval = time.Second / 60
+
+// TerminalDisplay renders the CHIP-8 framebuffer with ANSI escape codes.
+//
+// Writing to stdout is a blocking syscall and Draw runs on the VM goroutine, so
+// the display coalesces: Draw only stores the frame, and [TerminalDisplay.Run]
+// repaints at 60Hz. Painting on every DXYN would put a terminal write on the
+// instruction path - which stalls emulation and, because key state is only
+// sampled between instructions, silently drops keypresses.
+type TerminalDisplay struct {
+	mu    sync.Mutex
+	frame vm.FrameBuffer
+	gen   uint64
+
+	out      *bufio.Writer
+	done     chan struct{}
+	closeOne sync.Once
+}
 
 func NewTerminalDisplay() *TerminalDisplay {
-	// Clear screen and hide terminal cursor
+	// Clear the screen and hide the cursor.
 	fmt.Print("\033[2J\033[?25l")
-	return &TerminalDisplay{}
+	return &TerminalDisplay{
+		out:  bufio.NewWriterSize(os.Stdout, 16*1024),
+		done: make(chan struct{}),
+	}
 }
 
-// Clear clears the terminal screen and moves the cursor to top-left.
+// Clear implements [vm.DisplayProvider].
 func (t *TerminalDisplay) Clear() {
-	fmt.Print("\033[2J\033[H")
+	t.mu.Lock()
+	t.frame = vm.FrameBuffer{}
+	t.gen++
+	t.mu.Unlock()
 }
 
-// Draw renders the 64x32 buffer to the terminal.
-func (t *TerminalDisplay) Draw(data vm.FrameBuffer) {
-	var buf bytes.Buffer
+// Draw implements [vm.DisplayProvider]. It stores and returns; see the type doc
+// for why it must not paint.
+func (t *TerminalDisplay) Draw(frame vm.FrameBuffer) {
+	t.mu.Lock()
+	t.frame = frame
+	t.gen++
+	t.mu.Unlock()
+}
 
-	// Move cursor to top-left (1,1) without clearing, reducing flicker
-	buf.WriteString("\033[H")
+// Run repaints until Close is called. Run it on its own goroutine.
+func (t *TerminalDisplay) Run() {
+	tick := time.NewTicker(RefreshInterval)
+	defer tick.Stop()
 
-	for y := 0; y < 32; y++ {
-		for x := 0; x < 64; x++ {
-			if data[x][y] {
-				// Use two block characters per pixel to maintain a square 1:1 aspect ratio
-				buf.WriteString("██")
+	var last uint64
+	for {
+		select {
+		case <-t.done:
+			return
+		case <-tick.C:
+			t.mu.Lock()
+			frame, gen := t.frame, t.gen
+			t.mu.Unlock()
+			if gen == last {
+				// Unchanged since the last paint; redrawing would only flicker.
+				continue
+			}
+			last = gen
+			t.paint(&frame)
+		}
+	}
+}
+
+func (t *TerminalDisplay) paint(frame *vm.FrameBuffer) {
+	// Home the cursor rather than clearing the screen, which would flicker.
+	t.out.WriteString("\033[H")
+	for y := 0; y < vm.ScreenHeight; y++ {
+		for x := 0; x < vm.ScreenWidth; x++ {
+			// Two cells per pixel keeps the aspect ratio roughly square.
+			if frame[y][x] {
+				t.out.WriteString("██")
 			} else {
-				buf.WriteString("  ")
+				t.out.WriteString("  ")
 			}
 		}
-		buf.WriteString("\n")
+		t.out.WriteByte('\n')
 	}
-
-	os.Stdout.Write(buf.Bytes())
+	t.out.Flush()
 }
 
-// Close restores the terminal cursor when exiting.
+// Close stops the repaint loop and restores the cursor. It is safe to call
+// more than once.
 func (t *TerminalDisplay) Close() {
-	fmt.Print("\033[?25h")
+	t.closeOne.Do(func() {
+		close(t.done)
+		fmt.Print("\033[?25h")
+	})
 }
 
 var _ vm.DisplayProvider = (*TerminalDisplay)(nil)

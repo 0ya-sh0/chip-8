@@ -1,18 +1,17 @@
-import { Component, DestroyRef, HostListener, inject, OnInit, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, OnInit, signal } from '@angular/core';
 import { GameViewport } from "./components/game-viewport/game-viewport";
 import { RomPicker } from "./components/rom-picker/rom-picker";
-import { KeyBindings } from './common/models';
+import { KeyBindings, RomDetails } from './common/models';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, GameViewport, RomPicker],
+  imports: [GameViewport, RomPicker],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
 export class App implements OnInit {
   protected readonly title = signal('frontend');
-  selectedRom: any = signal(null);
+  selectedRom = signal<RomDetails | null>(null);
   
   storedKeyBindings:KeyBindings = {
     1: '',
@@ -64,10 +63,7 @@ export class App implements OnInit {
     );
   }
 
-  openGame(rom: any) {
-    // Implementation for opening the game with the selected ROM
-    console.log('Selected ROM:', rom);
-
+  openGame(rom: RomDetails) {
     this.selectedRom.set(rom);
   }
 

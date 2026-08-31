@@ -1,319 +1,294 @@
+// Command playground-server serves CHIP-8 ROMs to a browser client over
+// WebSocket: it runs the interpreter, streams packed framebuffers at 60Hz, and
+// feeds keyboard edges back into the VM.
 package main
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"flag"
+	"fmt"
 	"log"
+	"math"
+	"net"
 	"net/http"
+
+	// Registers /debug/pprof handlers on http.DefaultServeMux. Blank import is
+	// the documented way to enable them; keep the listener bound to localhost,
+	// as these endpoints expose process memory and allow expensive dumps.
+	_ "net/http/pprof"
 	"os"
-	"path"
+	"os/signal"
+	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/0ya-sh0/chip-8/internal/vm"
 	"github.com/gorilla/websocket"
 )
 
+// ROM is a playable ROM in the catalog.
 type ROM struct {
 	ID   int    `json:"id"`
 	Name string `json:"name"`
 	Path string `json:"-"`
 }
 
-var roms = []ROM{}
-
-func discoverRoms() {
-	id := 0
-	roms = []ROM{}
-	for _, d := range []string{"test-roms", "test-games", "more-roms"} {
-		entries, err := os.ReadDir(d)
-		if err != nil {
-			continue
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !entry.Type().IsRegular() {
-				continue
-			}
-			info, err := entry.Info()
-			if err != nil {
-				continue
-			}
-			if info.Size() == 0 {
-				continue
-			}
-
-			if name, has := strings.CutSuffix(info.Name(), ".ch8"); has {
-				rom := ROM{
-					ID:   id,
-					Name: name,
-					Path: path.Join(d, info.Name()),
-				}
-				id++
-				roms = append(roms, rom)
-			}
-		}
+func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "playground-server:", err)
+		os.Exit(1)
 	}
 }
 
-func main() {
-	discoverRoms()
-	for _, rom := range roms {
-		log.Printf("%d: %v\n", rom.ID, rom.Name)
+// run holds the real body of main so that deferred cleanup still executes on
+// the error path; calling os.Exit from main would skip every defer.
+func run() error {
+	var (
+		addr    = flag.String("addr", "localhost:9000", "listen address")
+		cpuHz   = flag.Int("cpu", vm.DefaultCPUHz, "interpreter speed in instructions per second")
+		minHold = flag.Duration("min-hold", vm.DefaultMinHold, "minimum time a keypress stays observable")
+		maxHold = flag.Duration("max-hold", vm.DefaultMaxHold, "maximum time an unobserved keypress stays pending; set equal to -min-hold to disable")
+		dirs    = flag.String("roms", "test-roms,test-games,more-roms", "comma-separated ROM directories")
+	)
+	flag.Parse()
+
+	catalog, err := discoverROMs(strings.Split(*dirs, ","))
+	if err != nil {
+		return err
 	}
-	http.HandleFunc("/game/{romid}", playGame)
-	http.HandleFunc("GET /game", fetchGames)
-	err := http.ListenAndServe("localhost:9000", nil)
-	log.Fatal(err)
+	if len(catalog) == 0 {
+		return errors.New("no .ch8 ROMs found; check -roms")
+	}
+	log.Printf("loaded %d roms, cpu=%dHz min-hold=%s max-hold=%s", len(catalog), *cpuHz, *minHold, *maxHold)
+
+	srv := newServer(catalog, *cpuHz, *minHold, *maxHold)
+
+	// Cancelled on SIGINT/SIGTERM. Sessions inherit this context, so a shutdown
+	// signal unwinds every VM and connection rather than leaving them running.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /game", srv.handleList)
+	mux.HandleFunc("GET /game/{romid}", srv.handlePlay)
+	mux.HandleFunc("GET /stats", srv.handleStats)
+	// pprof registered itself on DefaultServeMux; forward to it.
+	mux.Handle("/debug/", http.DefaultServeMux)
+
+	httpSrv := &http.Server{
+		Addr:              *addr,
+		Handler:           withCORS(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return ctx },
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		log.Printf("listening on http://%s", *addr)
+		errCh <- httpSrv.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errCh:
+		if errors.Is(err, http.ErrServerClosed) {
+			return nil
+		}
+		return err
+	case <-ctx.Done():
+		log.Println("shutting down")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return httpSrv.Shutdown(shutdownCtx)
+	}
+}
+
+// server holds immutable configuration plus the live session registry.
+type server struct {
+	catalog []ROM
+	cpuHz   int
+	minHold time.Duration
+	maxHold time.Duration
+
+	mu       sync.Mutex
+	sessions map[uint64]*session
+	nextID   atomic.Uint64
+}
+
+func newServer(catalog []ROM, cpuHz int, minHold, maxHold time.Duration) *server {
+	return &server{
+		catalog:  catalog,
+		cpuHz:    cpuHz,
+		minHold:  minHold,
+		maxHold:  maxHold,
+		sessions: make(map[uint64]*session),
+	}
 }
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	// The client is served from a different origin in development. Tighten this
+	// before exposing the server beyond localhost.
+	CheckOrigin: func(*http.Request) bool { return true },
 }
 
-func fetchGames(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-	data, _ := json.Marshal(roms)
-	w.Write(data)
+func (s *server) handleList(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, s.catalog)
 }
 
-func playGame(w http.ResponseWriter, r *http.Request) {
-	romstr := r.PathValue("romid")
-	if romstr == "" {
+func (s *server) handlePlay(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("romid"))
+	if err != nil || id < 0 || id >= len(s.catalog) {
+		http.Error(w, "unknown rom id", http.StatusNotFound)
 		return
 	}
-	romid, err := strconv.Atoi(romstr)
+	rom := s.catalog[id]
+
+	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
+		// Upgrade has already written an error response.
+		log.Printf("upgrade: %v", err)
 		return
 	}
-	if romid < 0 || romid >= len(roms) {
-		return
+
+	sess := newSession(conn, rom, s.cpuHz, s.minHold, s.maxHold)
+	id64 := s.register(sess)
+	defer s.unregister(id64)
+
+	log.Printf("session %d started: %s", id64, rom.Name)
+	// r.Context() is cancelled when the client disconnects or the server shuts
+	// down, so every goroutine the session owns is reachable from here.
+	logSessionEnd(rom.Name, sess.run(r.Context()))
+}
+
+func (s *server) handleStats(w http.ResponseWriter, r *http.Request) {
+	s.mu.Lock()
+	ids := make([]uint64, 0, len(s.sessions))
+	for id := range s.sessions {
+		ids = append(ids, id)
 	}
-	log.Printf("selected rom: %v\n", romid)
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Println("upgrade:", err)
-		return
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	out := make([]SessionStats, 0, len(ids))
+	for _, id := range ids {
+		st := s.sessions[id].Stats()
+		st.ID = id
+		out = append(out, st)
 	}
-	defer c.Close()
-	pg := NewPlaygroundProvider(c)
-	game := vm.NewChip8VM(pg, pg, pg)
-	game.LoadROMFromFile(roms[romid].Path)
-	game.Start(context.Background())
+	s.mu.Unlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"sessions": out,
+		"count":    len(out),
+	})
 }
 
-type KeyEventType int
-
-const (
-	KEY_UP KeyEventType = iota
-	KEY_DOWN
-)
-
-type KeyEvent struct {
-	key string
-	tp  KeyEventType
+func (s *server) register(sess *session) uint64 {
+	id := s.nextID.Add(1)
+	s.mu.Lock()
+	s.sessions[id] = sess
+	s.mu.Unlock()
+	return id
 }
 
-type Keys uint8
-
-const (
-	KEY_0 Keys = iota
-	KEY_1
-	KEY_2
-	KEY_3
-	KEY_4
-	KEY_5
-	KEY_6
-	KEY_7
-	KEY_8
-	KEY_9
-	KEY_A
-	KEY_B
-	KEY_C
-	KEY_D
-	KEY_E
-	KEY_F
-)
-
-type keyPressState struct {
-	pressed bool
-	ts      time.Time
+func (s *server) unregister(id uint64) {
+	s.mu.Lock()
+	delete(s.sessions, id)
+	s.mu.Unlock()
 }
 
-type PlaygroundProvider struct {
-	mu     sync.Mutex
-	c      *websocket.Conn
-	inbox  <-chan KeyEvent
-	keys   [16]keyPressState
-	fbuff  atomic.Pointer[vm.FrameBuffer]
-	outbox chan map[string]any
+// SessionStats is the JSON shape returned by /stats.
+type SessionStats struct {
+	ID     uint64 `json:"id"`
+	ROM    string `json:"rom"`
+	Uptime string `json:"uptime"`
+
+	// Instructions and EffectiveHz are the guardrail: if EffectiveHz sits well
+	// below ConfiguredHz the interpreter is being starved, which also means the
+	// keypad is sampled less often than intended.
+	Instructions uint64  `json:"instructions"`
+	ConfiguredHz int     `json:"configured_hz"`
+	EffectiveHz  float64 `json:"effective_hz"`
+
+	Draws        uint64            `json:"draws"`
+	DrawsPerSec  float64           `json:"draws_per_sec"`
+	DrawAvg      string            `json:"draw_avg"`
+	DrawMax      string            `json:"draw_max"`
+	OpcodeCounts map[string]uint64 `json:"opcode_counts"`
+
+	Keyboard vm.KeyStats `json:"keyboard"`
+
+	FramesSent     uint64 `json:"frames_sent"`
+	FramesSkipped  uint64 `json:"frames_skipped"`
+	BytesSent      uint64 `json:"bytes_sent"`
+	ControlSent    uint64 `json:"control_sent"`
+	ControlDropped uint64 `json:"control_dropped"`
+	KeyEvents      uint64 `json:"key_events"`
+	UnknownKeys    uint64 `json:"unknown_keys"`
 }
 
-func (p *PlaygroundProvider) keyProcessor() {
-	for {
-		event := <-p.inbox
-		var code uint8
-		switch event.key {
-		case "0":
-			code = uint8(KEY_0)
-		case "1":
-			code = uint8(KEY_1)
-		case "2":
-			code = uint8(KEY_2)
-		case "3":
-			code = uint8(KEY_3)
-		case "4":
-			code = uint8(KEY_4)
-		case "5":
-			code = uint8(KEY_5)
-		case "6":
-			code = uint8(KEY_6)
-		case "7":
-			code = uint8(KEY_7)
-		case "8":
-			code = uint8(KEY_8)
-		case "9":
-			code = uint8(KEY_9)
-		case "A":
-			code = uint8(KEY_A)
-		case "B":
-			code = uint8(KEY_B)
-		case "C":
-			code = uint8(KEY_C)
-		case "D":
-			code = uint8(KEY_D)
-		case "E":
-			code = uint8(KEY_E)
-		case "F":
-			code = uint8(KEY_F)
+// discoverROMs walks the given directories and returns a stable, sorted
+// catalog. Missing directories are skipped; unreadable ones are an error, since
+// silently serving a short list is worse than failing loudly.
+func discoverROMs(dirs []string) ([]ROM, error) {
+	var roms []ROM
+	for _, dir := range dirs {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			continue
 		}
-		p.mu.Lock()
-		if event.tp == KEY_DOWN {
-			if !p.keys[code].pressed {
-				p.keys[code].pressed = true
-				p.keys[code].ts = time.Now()
-			}
-		} else {
-			p.keys[code].pressed = false
-			p.keys[code].ts = p.keys[code].ts.Add(time.Millisecond * 300)
-		}
-		p.mu.Unlock()
-	}
-}
-
-func NewPlaygroundProvider(c *websocket.Conn) *PlaygroundProvider {
-	inbox := make(chan KeyEvent, 1024)
-	outbox := make(chan map[string]any, 1024)
-	go jsonReader(c, inbox)
-	obj := PlaygroundProvider{c: c, inbox: inbox, mu: sync.Mutex{}, outbox: outbox}
-	go obj.keyProcessor()
-	go obj.sendMessage()
-	go obj.sendFrames()
-	return &obj
-}
-
-func jsonReader(c *websocket.Conn, ch chan<- KeyEvent) {
-	for {
-		data := map[string]string{}
-		err := c.ReadJSON(&data)
+		entries, err := os.ReadDir(dir)
 		if err != nil {
-			log.Println("read json:", err)
-			close(ch)
-			c.Close()
-			return
-		} else {
-			log.Printf("data %+v\n", data)
-			if tp, ok1 := data["type"]; ok1 {
-				if key, ok2 := data["data"]; ok2 && (tp == "key.down" || tp == "key.up") {
-					k := KeyEvent{}
-					if tp == "key.down" {
-						k.tp = KEY_DOWN
-					} else {
-						k.tp = KEY_UP
-					}
-					k.key = key
-					log.Printf("key %+v\n", key)
-					ch <- k
-				}
+			if errors.Is(err, os.ErrNotExist) {
+				continue
 			}
+			return nil, fmt.Errorf("read rom dir %q: %w", dir, err)
 		}
-	}
-}
-
-// PlaySound implements [vm.SoundProvider].
-func (p *PlaygroundProvider) PlaySound() {
-	message := map[string]any{}
-	message["type"] = "sound.play"
-	p.outbox <- message
-}
-
-// StopSound implements [vm.SoundProvider].
-func (p *PlaygroundProvider) StopSound() {
-	message := map[string]any{}
-	message["type"] = "sound.stop"
-	p.outbox <- message
-}
-
-// Clear implements [vm.DisplayProvider].
-func (p *PlaygroundProvider) Clear() {
-	buf := vm.FrameBuffer{}
-	p.fbuff.Store(&buf)
-}
-
-// Draw implements [vm.DisplayProvider].
-func (p *PlaygroundProvider) Draw(data vm.FrameBuffer) {
-	p.fbuff.Store(&data)
-}
-
-func (p *PlaygroundProvider) sendFrames() {
-	tick := time.NewTicker(time.Second / 60)
-	defer tick.Stop()
-	for {
-		<-tick.C
-		if ptr := p.fbuff.Load(); ptr != nil {
-			message := map[string]any{}
-			message["type"] = "display.draw"
-			message["data"] = *ptr
-			p.outbox <- message
-		}
-	}
-}
-
-func (p *PlaygroundProvider) sendMessage() {
-	for m := range p.outbox {
-		p.c.WriteJSON(m)
-	}
-}
-
-// Close implements [vm.KeyboardProvider].
-func (p *PlaygroundProvider) Close() {
-}
-
-// GetPressedKey implements [vm.KeyboardProvider].
-func (p *PlaygroundProvider) GetPressedKey() (key uint8, pressed bool) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	now := time.Now()
-	for key, state := range p.keys {
-		if state.pressed || state.ts.After(now) {
-			return uint8(key), true
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.EqualFold(filepath.Ext(entry.Name()), ".ch8") {
+				continue
+			}
+			info, err := entry.Info()
+			if err != nil || info.Size() == 0 {
+				continue
+			}
+			roms = append(roms, ROM{
+				Name: strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name())),
+				Path: filepath.Join(dir, entry.Name()),
+			})
 		}
 	}
 
-	return 0, false
+	sort.Slice(roms, func(i, j int) bool { return roms[i].Path < roms[j].Path })
+	for i := range roms {
+		roms[i].ID = i
+	}
+	return roms, nil
 }
 
-// IsKeyPressed implements [vm.KeyboardProvider].
-func (p *PlaygroundProvider) IsKeyPressed(key uint8) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.keys[key].pressed || p.keys[key].ts.After(time.Now())
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
-var _ vm.KeyboardProvider = (*PlaygroundProvider)(nil)
-var _ vm.DisplayProvider = (*PlaygroundProvider)(nil)
-var _ vm.SoundProvider = (*PlaygroundProvider)(nil)
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("write json: %v", err)
+	}
+}
+
+func round1(f float64) float64 { return math.Round(f*10) / 10 }

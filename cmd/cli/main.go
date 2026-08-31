@@ -1,43 +1,56 @@
+// Command chip8 runs a CHIP-8 ROM in the terminal.
 package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
-	teminal "github.com/0ya-sh0/chip-8/internal/terminal"
+	"github.com/0ya-sh0/chip-8/internal/terminal"
 	"github.com/0ya-sh0/chip-8/internal/vm"
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Printf("Usage: ./chip-8 row.chip8\n")
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, "chip8:", err)
 		os.Exit(1)
+	}
+}
+
+// run exists so that deferred terminal restoration still happens on the error
+// path; os.Exit from main would skip every defer and leave the tty in cbreak
+// mode with the cursor hidden.
+func run() error {
+	if len(os.Args) < 2 {
+		return errors.New("usage: chip8 <rom.ch8>")
 	}
 	romPath := os.Args[1]
 
-	disp := teminal.NewTerminalDisplay()
+	disp := terminal.NewTerminalDisplay()
 	defer disp.Close()
+	go disp.Run()
 
-	kb, err := teminal.NewTerminalKeyboard()
+	kb, err := terminal.NewTerminalKeyboard()
 	if err != nil {
-		fmt.Printf("Failed to initialize keyboard: %v\n", err)
-		return
+		return fmt.Errorf("initialise keyboard: %w", err)
 	}
 	defer kb.Close()
 
-	chip8 := vm.NewChip8VM(kb, disp, teminal.NewTerminalSound())
-	if err := chip8.LoadROMFromFile(romPath); err != nil {
-		fmt.Printf("Failed to load ROM: %v\n", err)
-		return
+	machine := vm.NewChip8VM(kb, disp, terminal.NewTerminalSound())
+	if err := machine.LoadROMFromFile(romPath); err != nil {
+		return err
 	}
 
-	// 4. Set up Graceful Shutdown Context (Ctrl+C / SIGINT)
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
-	// 5. Start the CPU loop
-	chip8.Start(ctx)
+	// A clean quit surfaces as context.Canceled; anything else is a real fault
+	// and deserves a non-zero exit status.
+	if err := machine.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		return err
+	}
+	return nil
 }

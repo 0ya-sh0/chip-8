@@ -35,12 +35,8 @@ func Disassemble(rom []byte) (string, error) {
 
 // FormatOpcode converts a vm.ParsedOpcode into its exact assembly syntax string.
 func FormatOpcode(op vm.ParsedOpcode, raw [2]uint8) string {
-	n := op.Nibbles
-	x := n[1]
-	y := n[2]
-	nn := (n[2] << 4) | n[3]
-	nnn := (uint16(n[1]) << 8) | (uint16(n[2]) << 4) | uint16(n[3])
-	nibble := n[3]
+	x, y := op.X(), op.Y()
+	nn, nnn, nibble := op.NN(), op.NNN(), op.N()
 
 	switch op.OpcodeType {
 	case vm.Op00E0:
